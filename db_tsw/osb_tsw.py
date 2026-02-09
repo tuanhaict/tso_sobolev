@@ -110,7 +110,7 @@ class OSb_TSConcurrentLines:
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
-            return self.compute_via_optimization(h_edges, w_edges)
+            return self.compute_via_taylor(h_edges, w_edges)
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
         """
@@ -230,7 +230,67 @@ class OSb_TSConcurrentLines:
         # Mean over trees
         return torch.stack(distances_per_tree).mean()
 
-    
+    def compute_via_taylor(self, h_edges, w_edges):
+        """
+        Fully vectorized Taylor-approximated GST (NO optimization, NO loop over trees)
+
+        h_edges: (T, L, E)
+        w_edges: (T, L, E)
+        return: scalar (mean over trees)
+        """
+        eps = 1e-8
+
+        # flatten lines+edges but KEEP tree dim
+        # (T, L*E)
+        h = h_edges.reshape(h_edges.shape[0], -1)
+        w = w_edges.reshape(w_edges.shape[0], -1)
+
+        # ------------------------------
+        # POWER: exact closed form
+        # ------------------------------
+        if isinstance(self.n_function, PowerNFunction):
+            p = self.p
+            A_p = torch.sum(w * h**p, dim=1)          # (T,)
+            dist_per_tree = A_p.pow(1.0 / p)          # (T,)
+
+        # ------------------------------
+        # EXP: Phi(t)=exp(t)-t-1
+        # t^2/2 + t^3/6 + ...
+        # ------------------------------
+        elif isinstance(self.n_function, ExpNFunction):
+            A2 = torch.sum(w * h**2, dim=1)            # (T,)
+            A3 = torch.sum(w * h**3, dim=1)            # (T,)
+
+            core = torch.sqrt(A2 + eps)
+            alpha = 1.0 / (3.0 * torch.sqrt(torch.tensor(2.0, device=h.device)))
+
+            dist_per_tree = core + alpha * A3 / (A2.pow(1.5) + eps)
+
+        # ------------------------------
+        # EXP^2: Phi(t)=exp(t^2)-1
+        # t^2 + t^4/2 + ...
+        # ------------------------------
+        elif isinstance(self.n_function, ExpSquaredNFunction):
+            A2 = torch.sum(w * h**2, dim=1)            # (T,)
+            A4 = torch.sum(w * h**4, dim=1)            # (T,)
+
+            core = torch.sqrt(A2 + eps)
+            beta = 0.25
+
+            dist_per_tree = core + beta * A4 / (A2.pow(2.0) + eps)
+
+        # ------------------------------
+        # LINEAR: W1-like fallback
+        # ------------------------------
+        elif isinstance(self.n_function, LinearNFunction):
+            dist_per_tree = torch.sum(w * h, dim=1)    # (T,)
+
+        else:
+            raise ValueError("Taylor expansion not implemented for this N-function")
+
+        # mean over trees
+        return dist_per_tree.mean()
+
     def get_mass_and_coordinate(self, X, Y, theta, intercept):
         """
         Project X and Y onto trees/lines and compute masses and coordinates.
