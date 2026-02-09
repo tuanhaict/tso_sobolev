@@ -53,6 +53,12 @@ def parse_args():
         default=1,
         help='p value in Sobolev-p distance')
     parser.add_argument(
+        '--n_function',
+        type=str,
+        default='exp',
+        help='n_function in OSbTS'
+    )
+    parser.add_argument(
         '--dataset_name',
         type=str,
         default='25gaussians',

@@ -169,7 +169,7 @@ for k, title in enumerate(titles):
                     gen_mode='gaussian_raw',
                     device='cuda'
                 )  # orthogonal
-                loss += gradient_flow.OSbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta)
+                loss += gradient_flow.OSbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta, n_function=args.n_function)
                 end_time = time.time()  # End timing
                 # print(f"Time taken for TWD orthogonal: {end_time - start_time:.4f} seconds")
             optimizer.zero_grad()
