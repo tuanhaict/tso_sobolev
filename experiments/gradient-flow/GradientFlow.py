@@ -17,9 +17,9 @@ from tqdm import tqdm
 dataset_name = args.dataset_name
 nofiterations = args.num_iter
 seeds = range(1,args.num_seeds+1)
-modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
-titles = ['SW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'MaxSW']
-colors = ['blue', 'orange', 'red', 'green', 'purple', 'brown', 'pink']
+modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
+titles = ['SW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'MaxSW', 'OSbTS']
+colors = ['blue', 'orange', 'red', 'green', 'purple', 'brown', 'pink', 'cyan']
 
 # Arrays to store results
 results = {}
@@ -158,7 +158,20 @@ for k, title in enumerate(titles):
                 loss += l
                 end_time = time.time()  # End timing
                 # print(f"Time taken for max SW: {end_time - start_time:.4f} seconds")
-
+            elif k == 7:
+                start_time = time.time()  # Start timing
+                theta_twd, intercept_twd = generate_trees_frames(
+                    ntrees=int(args.L / args.n_lines),
+                    nlines=args.n_lines,
+                    d=X.shape[1],
+                    mean=mean_X,
+                    std=args.std,
+                    gen_mode='gaussian_raw',
+                    device='cuda'
+                )  # orthogonal
+                loss += gradient_flow.OSbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta)
+                end_time = time.time()  # End timing
+                # print(f"Time taken for TWD orthogonal: {end_time - start_time:.4f} seconds")
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()

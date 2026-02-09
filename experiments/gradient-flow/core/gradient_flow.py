@@ -2,6 +2,7 @@ import numpy as np
 
 import torch
 from torch import optim
+from db_tsw.osb_tsw import OSb_TSConcurrentLines
 import ot
 from db_tsw.db_tsw import TWConcurrentLines
 from db_tsw.sb_tsw import Sb_TSConcurrentLines 
@@ -215,6 +216,14 @@ def SbTS(X, Y, theta, intercept, mass_division = 'distance_based', p = 2, delta 
     L = theta.shape[0]
     nlines = theta.shape[1]
     TWD_obj = Sb_TSConcurrentLines(p=p, delta=delta, mass_division=mass_division, device=device)
+    return TWD_obj(X, Y, theta, intercept)
+def OSbTS(X, Y, theta, intercept, mass_division = 'distance_based', p = 2, delta = 2., device = 'cuda'):
+    # print(p)
+    # print(delta)
+    # exit()
+    L = theta.shape[0]
+    nlines = theta.shape[1]
+    TWD_obj = OSb_TSConcurrentLines(p=p, delta=delta, mass_division=mass_division, device=device)
     return TWD_obj(X, Y, theta, intercept)
 
 import numpy as np
