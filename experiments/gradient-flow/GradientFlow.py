@@ -33,8 +33,8 @@ for i, seed in enumerate(seeds):
     N = 500  # Number of samples from p_X
     Xs.append(load_data(name=dataset_name, n_samples=N, dim=2))
     Xs[i] -= Xs[i].mean(dim=0)[np.newaxis, :]  # Normalization
-lear_rates = [args.lr_sw, args.lr_tsw_sl, args.lr_tsw_sl, args.lr_tsw_sl, args.lr_sw, args.lr_sw, args.lr_sw]
-n_projs = [args.L, int(args.L / args.n_lines), int(args.L / args.n_lines), int(args.L / args.n_lines), args.L, args.L, args.L]
+lear_rates = [args.lr_sw, args.lr_tsw_sl, args.lr_tsw_sl, args.lr_tsw_sl, args.lr_sw, args.lr_sw, args.lr_sw, args.lr_tsw_sl]
+n_projs = [args.L, int(args.L / args.n_lines), int(args.L / args.n_lines), int(args.L / args.n_lines), args.L, args.L, args.L, int(args.L / args.n_lines)]
 assert len(modes) == len(titles) == len(colors) == len(lear_rates) == len(n_projs)
 
 for k, title in enumerate(titles):
