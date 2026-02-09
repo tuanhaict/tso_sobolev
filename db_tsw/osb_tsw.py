@@ -170,49 +170,66 @@ class OSb_TSConcurrentLines:
     
     def compute_via_optimization(self, h_edges, w_edges):
         """
-        Compute using univariate optimization for general N-functions.
-        
-        For each tree, minimize: F(k) = (1/k) * [1 + sum_e w_e * Phi(k * |h(e)|)]
-        Then mean the distances over all trees.
+        Compute using univariate optimization for general N-functions
+        using implicit differentiation (detach k*).
+
+        h_edges: (T, L, E)  |h(e)|, requires_grad=True
+        w_edges: (T, L, E)  w_e, no grad
         """
-        # Convert to numpy for scipy optimization
-        h_edges_np = h_edges.detach().cpu().numpy()  # (num_trees, num_lines, num_edges)
-        w_edges_np = w_edges.detach().cpu().numpy()  # (num_trees, num_lines, num_edges)
-        
-        num_trees = h_edges_np.shape[0]
+        num_trees = h_edges.shape[0]
+        device = h_edges.device
+
         distances_per_tree = []
-        
-        # Optimize for each tree separately
-        for tree_idx in range(num_trees):
-            h_tree = h_edges_np[tree_idx]  # (num_lines, num_edges)
-            w_tree = w_edges_np[tree_idx]  # (num_lines, num_edges)
-            
-            def objective(k):
-                """Objective function F(k) for this tree"""
-                if k <= 0:
-                    return np.inf
-                
-                # Compute sum_e w_e * Phi(k * |h(e)|) for this tree
-                phi_sum = np.sum(w_tree * self.n_function(k * h_tree))
-                
-                return (1.0 / k) * (1.0 + phi_sum)
-            
-            # Initial guess based on characteristic scale of this tree
-            h_mean = np.mean(h_tree)
-            k_init = 1.0 / (h_mean + 1e-8)
-            
-            if self.optimization_method == 'bounded':
-                # Use bounded optimization with reasonable bounds
-                result = minimize_scalar(objective, bounds=(1e-6, 1e6), method='bounded')
-            else:
-                # Use Brent's method (unbounded)
-                result = minimize_scalar(objective, bracket=(k_init * 0.1, k_init, k_init * 10))
-            
-            distances_per_tree.append(result.fun)
-        
-        # Mean over all trees
-        mean_distance = np.mean(distances_per_tree)
-        return torch.tensor(mean_distance, device=self.device)
+
+        for t in range(num_trees):
+            h = h_edges[t]        # (L, E)
+            w = w_edges[t]        # (L, E)
+
+            # Collapse lines + edges into one dimension (sum_e)
+            h_flat = h.reshape(-1)
+            w_flat = w.reshape(-1)
+
+            # -----------------------------
+            # 1️⃣ Solve k* (NO GRAD)
+            # -----------------------------
+            with torch.no_grad():
+                # init k using inverse mean scale
+                k = 1.0 / (h_flat.mean() + 1e-8)
+
+                for _ in range(5):  # 3–5 Newton steps are enough
+                    kh = k * h_flat
+
+                    Phi = self.n_function(kh)
+                    Phi_p = self.n_function.derivative(kh)
+                    Phi_pp = self.n_function.second_derivative(kh)
+
+                    sum_Phi = torch.sum(w_flat * Phi)
+                    sum_Phi_p = torch.sum(w_flat * h_flat * Phi_p)
+                    sum_Phi_pp = torch.sum(w_flat * h_flat**2 * Phi_pp)
+
+                    Fp = -(1.0 + sum_Phi) / k**2 + sum_Phi_p / k
+                    Fpp = (
+                        2.0 * (1.0 + sum_Phi) / k**3
+                        - 2.0 * sum_Phi_p / k**2
+                        + sum_Phi_pp / k
+                    )
+
+                    k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
+
+            # -----------------------------
+            # 2️⃣ Detach k* (KEY STEP)
+            # -----------------------------
+            k = k.detach()
+
+            # -----------------------------
+            # 3️⃣ Compute loss (WITH GRAD)
+            # -----------------------------
+            loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
+            distances_per_tree.append(loss_t)
+
+        # Mean over trees
+        return torch.stack(distances_per_tree).mean()
+
     
     def get_mass_and_coordinate(self, X, Y, theta, intercept):
         """
