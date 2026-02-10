@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
-from spherical.methods.n_functions import ExpNFunction, ExpSquaredNFunction, LinearNFunction, PowerNFunction
+from methods.n_functions import ExpNFunction, ExpSquaredNFunction, LinearNFunction, PowerNFunction
 from utils.func import transform
 
 class OSbSTSD():
