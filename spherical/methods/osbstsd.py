@@ -53,7 +53,7 @@ class OSbSTSD():
         
         combined_axis_coordinate, mass_X, mass_Y = self.get_mass_and_coordinate(X, Y, root, intercept)
         h_edges, w_edges = self.stw_concurrent_lines(mass_X, mass_Y, combined_axis_coordinate)
-        return self.compute_closed_form(h_edges, w_edges)
+        return self.compute_via_taylor(h_edges, w_edges)
     def compute_via_taylor(self, h_edges, w_edges):
         eps = 1e-8
 
