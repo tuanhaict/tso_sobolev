@@ -11,6 +11,7 @@ from tqdm.auto import trange
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
+from spherical.methods import osbstsd
 from train import run_exp
 
 import sys
@@ -46,6 +47,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-2)
     parser.add_argument('--batch_size', type=int, default=2400)
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--n_function', type=str, default='power')
     
     args = parser.parse_args()
     set_seed(args.seed)
@@ -86,6 +88,9 @@ if __name__ == "__main__":
     elif args.d_func == "sbsts":
         d_func = sbstsd.sbsts
         d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device}
+    elif args.d_func == "osbsts":
+        d_func = osbstsd.osbsts
+        d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device, 'n_function': args.n_function}
     elif args.d_func == "ari_s3w":
         d_func = s3wd.ari_s3wd
         d_args = {'p': 2, 'n_projs': 1000, 'device': device, 'h': None, 'n_rotations': 30, 'pool_size': 1000}
