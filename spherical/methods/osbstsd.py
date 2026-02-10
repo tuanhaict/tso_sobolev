@@ -140,7 +140,7 @@ class OSbSTSD():
         h_edges = torch.abs(sub_mass_target_cumsum)
         
         # w_e is the edge length
-        w_edges = edge_length
+        w_edges = edge_length.repeat(1, num_lines, 1)
         
         return h_edges, w_edges
 
