@@ -27,7 +27,7 @@ class OSbSTSD():
             raise ValueError("type should be either normal or generalized")
         self.type = type
         if n_function == "power":
-            self.n_function = PowerNFunction()
+            self.n_function = PowerNFunction(p)
         elif n_function == "exp":
             self.n_function = ExpNFunction()
         elif n_function == "exp_squared":
