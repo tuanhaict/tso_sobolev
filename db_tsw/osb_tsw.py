@@ -110,7 +110,7 @@ class OSb_TSConcurrentLines:
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
-            return self.compute_via_taylor(h_edges, w_edges)
+            return self.compute_via_optimization(h_edges, w_edges)
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
         """
@@ -215,18 +215,10 @@ class OSb_TSConcurrentLines:
                     )
 
                     k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
-
-            # -----------------------------
-            # 2️⃣ Detach k* (KEY STEP)
-            # -----------------------------
             k = k.detach()
-
-            # -----------------------------
-            # 3️⃣ Compute loss (WITH GRAD)
-            # -----------------------------
             loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
-
+        print(f"Distance: {torch.stack(distances_per_tree).mean()}")
         # Mean over trees
         return torch.stack(distances_per_tree).mean()
 
