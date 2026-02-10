@@ -216,9 +216,12 @@ class OSb_TSConcurrentLines:
 
                     k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
             k = k.detach()
+            kh = k * h_flat
+            print(
+                f"[tree {t}] max|k·h| = {kh.abs().max().item():.3e}"
+            )
             loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
-        print(f"Distance: {torch.stack(distances_per_tree).mean()}")
         # Mean over trees
         return torch.stack(distances_per_tree).mean()
 
