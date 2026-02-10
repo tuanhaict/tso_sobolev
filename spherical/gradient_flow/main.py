@@ -11,7 +11,6 @@ from tqdm.auto import trange
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
-from spherical.methods import osbstsd
 from train import run_exp
 
 import sys
@@ -19,7 +18,7 @@ sys.path.append('../')
 import utils.vmf as vmf_utils
 import utils.plot as plot_utils
 from utils.func import set_seed
-from methods import s3wd, sswd, stswd, sbstsd
+from methods import s3wd, sswd, stswd, sbstsd, osbstsd
 
 def plot_result(X, out_path):
     k = gaussian_kde(X.T)
