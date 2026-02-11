@@ -35,6 +35,7 @@ class Options:
     weight_decay: float = 1e-3
 
     gpus: Tuple[int] = (0,)
+    n_function: str = "power"  # Options: power, exp, exp_squared, linear
 
 
 def train_eval(opt: Options):
@@ -44,6 +45,7 @@ def train_eval(opt: Options):
         f"_ntrees_{opt.ntrees}_nlines_{opt.nlines}_delta_{opt.delta}_p_{opt.p}"
         f"_unif_w_{opt.unif_w}_align_w_{opt.align_w}"
         f"_lr_{opt.lr}_momentum_{opt.momentum}_seed_{opt.seed}_weight_decay_{opt.weight_decay}"
+        f"_n_function_{opt.n_function}"
         + (opt.identifier if opt.identifier is not None else "")
     )
 
@@ -79,6 +81,7 @@ def train_eval(opt: Options):
         p=opt.p,
         weight_decay=opt.weight_decay,
         gpus=opt.gpus,
+        n_function=opt.n_function,
     )
 
     pretrain_start = time.time()

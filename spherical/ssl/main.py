@@ -13,6 +13,7 @@ import torchvision
 from torchvision.datasets import STL10, CIFAR10
 
 from dataparser import dataparser, Field, from_args
+from spherical.methods.osbstsd import osbsts
 from util import TwoAugUnsupervisedDataset, AverageMeter, strfdelta
 from encoder import ResNet
 
@@ -61,6 +62,7 @@ class Options:
     gpus: Tuple[int] = (1,) # Field(nargs="*", default=[1])
     identifier: str = "" # Field(default=None)
     seed: int = 0
+    n_function: str = "power"  # Options: power, exp, exp_squared, linear
 
 
 def prepare_loader(opt: Options) -> DataLoader:
@@ -272,7 +274,20 @@ def pretrain(opt: Options):
             sbsts(y, y0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device)
         ) / 2
         return align_loss_val, unif_loss_val
+    def osbsts_loss(x, y):
+        align_loss_val = align_loss(x, y, alpha=opt.align_alpha)
 
+        x0 = torch.randn_like(x, device=x.device)
+        x0 = F.normalize(x0, p=2, dim=-1)
+
+        y0 = torch.randn_like(y, device=y.device)
+        y0 = F.normalize(y0, p=2, dim=-1)
+
+        unif_loss_val = (
+            osbsts(x, x0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function) + 
+            osbsts(y, y0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function)
+        ) / 2
+        return align_loss_val, unif_loss_val
     def simclr_loss(x, y):
         b = x.size(0)
         z = torch.cat((x, y))
@@ -293,7 +308,8 @@ def pretrain(opt: Options):
         "ari_s3w": ari_s3w_loss,
         "stsw": stsw_loss,
         "sbsts": sbsts_loss,
-        "stsw_gen": stsw_gen_loss
+        "stsw_gen": stsw_gen_loss,
+        "osbsts": osbsts_loss,
     }[opt.method]
 
     align_meter = AverageMeter("align_loss")
