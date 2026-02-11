@@ -13,7 +13,6 @@ import torchvision
 from torchvision.datasets import STL10, CIFAR10
 
 from dataparser import dataparser, Field, from_args
-from spherical.methods.osbstsd import osbsts
 from util import TwoAugUnsupervisedDataset, AverageMeter, strfdelta
 from encoder import ResNet
 
@@ -25,7 +24,7 @@ from methods.s3wd import s3wd, ri_s3wd, ari_s3wd
 from methods.swd import swd
 from methods.stswd import stswd
 from methods.sbstsd import sbsts
-
+from methods.osbstsd import osbsts
 @dataparser
 class Options:
     "Pre-training script"
