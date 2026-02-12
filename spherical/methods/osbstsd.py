@@ -77,6 +77,7 @@ class OSbSTSD():
                 torch.sqrt(2.0 * A2 + eps)
                 + A3 / (3.0 * (A2 + eps))
             )
+            print("sqrt(2.0 * A2):", torch.sqrt(2.0 * A2 + eps), "A3 / (3.0 * (A2 + eps)):", A3 / (3.0 * (A2 + eps)))
 
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
