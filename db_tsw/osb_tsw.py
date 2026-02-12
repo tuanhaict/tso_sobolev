@@ -35,7 +35,7 @@ class OSb_TSConcurrentLines:
         self.delta = delta
         self.mass_division = mass_division
         self.optimization_method = optimization_method
-        
+        self.p_agg = 2
         assert self.mass_division in ['uniform', 'distance_based'], \
             "Invalid mass division. Must be one of 'uniform', 'distance_based'"
         
@@ -262,7 +262,7 @@ class OSb_TSConcurrentLines:
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
 
-        return dist_per_tree.mean()
+        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
 
     def get_mass_and_coordinate(self, X, Y, theta, intercept):
