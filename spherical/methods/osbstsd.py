@@ -23,6 +23,7 @@ class OSbSTSD():
         self.delta = delta
         self.device = device
         self.eps = 1e-6
+        self.p_agg = 2
         if type not in ["normal", "generalized"]:
             raise ValueError("type should be either normal or generalized")
         self.type = type
@@ -71,13 +72,11 @@ class OSbSTSD():
         elif isinstance(self.n_function, ExpNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-            print("A2:", A2, "A3:", A3, "h", torch.sum(h, dim=1))
 
             dist_per_tree = (
                 torch.sqrt(2.0 * A2 + eps)
                 + A3 / (3.0 * (A2 + eps))
             )
-            print("sqrt(2.0 * A2):", torch.sqrt(2.0 * A2 + eps), "A3 / (3.0 * (A2 + eps)):", A3 / (3.0 * (A2 + eps)))
 
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
@@ -93,7 +92,7 @@ class OSbSTSD():
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
 
-        return dist_per_tree.mean()
+        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
     def compute_closed_form(self, h_edges, w_edges):
         """
         Compute using closed form for Phi(t) = ((p-1)^(p-1)/p^p) * t^p.
