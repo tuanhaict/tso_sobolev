@@ -110,6 +110,10 @@ class OSb_TSConcurrentLines:
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
+            res_op = self.compute_via_optimization(h_edges, w_edges)
+            res_taylor = self.compute_via_taylor(h_edges, w_edges)
+            print(f"GTW via optimization: {res_op}")
+            print(f"GTW via Taylor approx.: {res_taylor}")
             return self.compute_via_taylor(h_edges, w_edges)
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
@@ -223,7 +227,10 @@ class OSb_TSConcurrentLines:
             loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
         # Mean over trees
-        return torch.stack(distances_per_tree).mean()
+        dist_per_tree = torch.stack(distances_per_tree)
+
+        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+
 
     def compute_via_taylor(self, h_edges, w_edges):
         eps = 1e-8
