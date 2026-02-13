@@ -55,8 +55,9 @@ class OSbSTSD():
         root, intercept = self.generate_spherical_trees_frames(d=dn)
         
         combined_axis_coordinate, mass_X, mass_Y = self.get_mass_and_coordinate(X, Y, root, intercept)
-        h_edges, w_edges = self.stw_concurrent_lines(mass_X, mass_Y, combined_axis_coordinate)
+        h_edges, w_edges = self.compute_edge_mass_and_weights(mass_X, mass_Y, combined_axis_coordinate)
         if self.use_closed_form:
+            return self.stw_concurrent_lines(mass_X, mass_Y, combined_axis_coordinate)
             return self.compute_closed_form(h_edges, w_edges)
         return self.compute_via_taylor(h_edges, w_edges)
     def compute_via_taylor(self, h_edges, w_edges):
@@ -112,7 +113,7 @@ class OSbSTSD():
 
         return (distances_per_tree.pow(self.p_agg).mean()).pow(1 / self.p_agg)
 
-    def stw_concurrent_lines(self, mass_X, mass_Y, combined_axis_coordinate):
+    def compute_edge_mass_and_weights(self, mass_X, mass_Y, combined_axis_coordinate):
         """
         Args:
             mass_X: (num_trees, num_lines, 2 * num_points)
@@ -144,7 +145,34 @@ class OSbSTSD():
         w_edges = edge_length.repeat(1, num_lines, 1)
         
         return h_edges, w_edges
+    def stw_concurrent_lines(self, mass_X, mass_Y, combined_axis_coordinate):
+        """
+        Args:
+            mass_X: (num_trees, num_lines, 2 * num_points)
+            mass_Y: (num_trees, num_lines, 2 * num_points)
+            combined_axis_coordinate: (num_trees, 2 * num_points)
+        """
+        coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
+        num_trees, num_lines = mass_X.shape[0], mass_X.shape[1]
+        indices = indices.unsqueeze(1).repeat(1, num_lines, 1)
 
+        # generate the cumulative sum of mass
+        mass_X_sorted = torch.gather(mass_X, 2, indices)
+        mass_Y_sorted = torch.gather(mass_Y, 2, indices)
+        sub_mass = mass_X_sorted - mass_Y_sorted
+        sub_mass_cumsum = torch.cumsum(sub_mass, dim=-1)
+        sub_mass_target_cumsum = sub_mass + torch.sum(sub_mass, dim=-1, keepdim=True) - sub_mass_cumsum #(ntrees, nlines, 2*npoints)
+
+        ### compute edge length
+        edge_length = torch.diff(coord_sorted, prepend=torch.zeros((num_trees, 1), device=coord_sorted.device), dim=-1)
+        edge_length = edge_length.unsqueeze(1) #(ntrees, 1, 2*npoints)
+
+        # compute TW distance
+        subtract_mass = (torch.abs(sub_mass_target_cumsum) ** self.p) * edge_length
+        subtract_mass_sum = torch.sum(subtract_mass, dim=[-1,-2])
+        tw = torch.mean(subtract_mass_sum) ** (1/self.p)
+
+        return tw
 
     def get_mass_and_coordinate(self, X, Y, root, intercept):
         # for the last dimension
