@@ -108,9 +108,9 @@ class OSbSTSD():
         weighted_sum_per_tree = torch.sum(w_edges * torch.pow(h_edges, p), dim=[-1, -2])  # (num_trees,)
         
         # Mean over trees
-        distances_per_tree = torch.pow(weighted_sum_per_tree, 1.0 / p)
+        distances_per_tree = torch.pow(weighted_sum_per_tree, 1 / p)
 
-        return (distances_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+        return (distances_per_tree.pow(self.p_agg).mean()).pow(1 / self.p_agg)
 
     def stw_concurrent_lines(self, mass_X, mass_Y, combined_axis_coordinate):
         """
