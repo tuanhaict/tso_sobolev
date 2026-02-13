@@ -54,10 +54,10 @@ class OSbSTSD():
         
         combined_axis_coordinate, mass_X, mass_Y = self.get_mass_and_coordinate(X, Y, root, intercept)
         h_edges, w_edges = self.stw_concurrent_lines(mass_X, mass_Y, combined_axis_coordinate)
+        if self.use_closed_form:
+            return self.compute_closed_form(h_edges, w_edges)
         return self.compute_via_taylor(h_edges, w_edges)
     def compute_via_taylor(self, h_edges, w_edges):
-        eps = 1e-8
-
         # (T, L*E)
         h = h_edges.reshape(h_edges.shape[0], -1)
         w = w_edges.reshape(w_edges.shape[0], -1)
@@ -67,15 +67,15 @@ class OSbSTSD():
             A_p = torch.sum(w * h**p, dim=1)
 
             Cp = (p - 1)**(1.0 / p) + (p - 1)**(-(p - 1) / p)
-            dist_per_tree = Cp * (A_p + eps).pow(1.0 / p)
+            dist_per_tree = Cp * (A_p).pow(1.0 / p)
 
         elif isinstance(self.n_function, ExpNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
 
             dist_per_tree = (
-                torch.sqrt(2.0 * A2 + eps)
-                + A3 / (3.0 * (A2 + eps))
+                torch.sqrt(2.0 * A2)
+                + A3 / (3.0 * (A2))
             )
 
         elif isinstance(self.n_function, ExpSquaredNFunction):
@@ -83,8 +83,8 @@ class OSbSTSD():
             A4 = torch.sum(w * h**4, dim=1)
 
             dist_per_tree = (
-                2.0 * torch.sqrt(A2 + eps)
-                + A4 / (2.0 * (A2 + eps).pow(1.5))
+                2.0 * torch.sqrt(A2)
+                + A4 / (2.0 * (A2 ).pow(1.5))
             )
         elif isinstance(self.n_function, LinearNFunction):
             dist_per_tree = torch.sum(w * torch.abs(h), dim=1)
