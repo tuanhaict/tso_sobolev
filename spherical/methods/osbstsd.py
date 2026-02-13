@@ -57,11 +57,6 @@ class OSbSTSD():
         combined_axis_coordinate, mass_X, mass_Y = self.get_mass_and_coordinate(X, Y, root, intercept)
         h_edges, w_edges = self.compute_edge_mass_and_weights(mass_X, mass_Y, combined_axis_coordinate)
         if self.use_closed_form:
-            res_closed_form = self.compute_closed_form(h_edges, w_edges)
-            print(f"GTW via closed form: {res_closed_form}")
-            res = self.stw_concurrent_lines(mass_X, mass_Y, combined_axis_coordinate)
-            print(f"STW distance: {res}")
-            return self.stw_concurrent_lines(mass_X, mass_Y, combined_axis_coordinate)
             return self.compute_closed_form(h_edges, w_edges)
         return self.compute_via_taylor(h_edges, w_edges)
     def compute_via_taylor(self, h_edges, w_edges):
