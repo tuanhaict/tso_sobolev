@@ -37,6 +37,8 @@ class OSbSTSD():
             self.n_function = LinearNFunction()
         else:
             raise ValueError("Unsupported n_function type")
+        self.use_closed_form = (isinstance(self.n_function, PowerNFunction) and 
+                                 self.n_function.coeff == ((p-1)**(p-1))/(p**p))
 
     def __call__(self, X, Y):
         if self.type == "generalized":
