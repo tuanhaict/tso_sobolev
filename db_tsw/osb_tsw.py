@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from db_tsw.n_functions import ExpNFunction, ExpSquaredNFunction, LinearNFunction, NFunction, PowerNFunction
+from db_tsw.n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, NFunction, PowerNFunction
 from db_tsw.utils import generate_trees_frames
 from scipy.optimize import minimize_scalar
 
@@ -48,6 +48,10 @@ class OSb_TSConcurrentLines:
             self.n_function = ExpNFunction()
         elif n_function == 'exp_squared':
             self.n_function = ExpSquaredNFunction()
+        elif n_function == 'exp_squared_4':
+            self.n_function = ExpQuadraticQuarterNFunction()
+        elif n_function == 'exp_2':
+            self.n_function = ExpHalfLinearCorrectedNFunction()
         elif n_function == 'linear':
             self.n_function = LinearNFunction()
         else:
@@ -263,6 +267,23 @@ class OSb_TSConcurrentLines:
             )
         elif isinstance(self.n_function, LinearNFunction):
             dist_per_tree = torch.sum(w * torch.abs(h), dim=1)
+        elif isinstance(self.n_function, ExpQuadraticQuarterNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A4 = torch.sum(w * h**4, dim=1)
+
+            dist_per_tree = (
+                torch.sqrt(A2 + eps)
+                + A4 / (4.0 * (A2 + eps).pow(1.5))
+            )
+
+        elif isinstance(self.n_function, ExpHalfLinearCorrectedNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+
+            dist_per_tree = (
+                torch.sqrt((A2 + eps)/2.0)
+                + A3 / (6.0 * (A2 + eps))
+            )
 
         else:
             raise ValueError("Unsupported N-function for Taylor GST")

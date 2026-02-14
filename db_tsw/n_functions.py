@@ -129,3 +129,43 @@ class LinearNFunction(NFunction):
         raise NotImplementedError(
             "LinearNFunction is not C^2 and cannot be used with Newton optimization."
         )
+class ExpQuadraticQuarterNFunction(NFunction):
+    """Phi(t) = exp(t^2 / 4) - 1"""
+
+    def __call__(self, t):
+        if isinstance(t, torch.Tensor):
+            return torch.exp(t**2 / 4.0) - 1
+        else:
+            return np.exp(t**2 / 4.0) - 1
+
+    def derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return (t / 2.0) * torch.exp(t**2 / 4.0)
+        else:
+            return (t / 2.0) * np.exp(t**2 / 4.0)
+
+    def second_derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return torch.exp(t**2 / 4.0) * (0.5 + t**2 / 4.0)
+        else:
+            return np.exp(t**2 / 4.0) * (0.5 + t**2 / 4.0)
+class ExpHalfLinearCorrectedNFunction(NFunction):
+    """Phi(t) = exp(t/2) - 1 - t/2"""
+
+    def __call__(self, t):
+        if isinstance(t, torch.Tensor):
+            return torch.exp(t / 2.0) - 1 - t / 2.0
+        else:
+            return np.exp(t / 2.0) - 1 - t / 2.0
+
+    def derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return 0.5 * torch.exp(t / 2.0) - 0.5
+        else:
+            return 0.5 * np.exp(t / 2.0) - 0.5
+
+    def second_derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return 0.25 * torch.exp(t / 2.0)
+        else:
+            return 0.25 * np.exp(t / 2.0)
