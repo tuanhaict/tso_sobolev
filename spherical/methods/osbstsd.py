@@ -256,8 +256,8 @@ def unif_hypersphere(shape, device):
     samples = F.normalize(samples, p=2, dim=-1)
     return samples
 
-def osbsts(X, Y, ntrees=250, nlines=4, p=2, delta=2, device='cuda', type='normal', n_function="power"):
-    TW_obj = OSbSTSD(ntrees=ntrees, nlines=nlines, p=p, delta=delta, device=device, type=type, n_function=n_function)
+def osbsts(X, Y, ntrees=250, nlines=4, p=2, delta=2, device='cuda', type='normal', n_function="power", p_agg=2):
+    TW_obj = OSbSTSD(ntrees=ntrees, nlines=nlines, p=p, delta=delta, device=device, type=type, n_function=n_function, p_agg=p_agg)
     stswd = TW_obj(X, Y)
     return stswd
 

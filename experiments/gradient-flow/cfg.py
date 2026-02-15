@@ -83,7 +83,12 @@ def parse_args():
         action='store_true',
         default=False,
         help='evaluate only sobolev')
-
+    parser.add_argument(
+        "--p_agg",
+        type=float,
+        default=2,
+        help="p value for aggregating tree distances in OSbTS and TWD"
+    )
 
     opt = parser.parse_args()
     return opt

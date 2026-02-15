@@ -36,6 +36,7 @@ class Options:
 
     gpus: Tuple[int] = (0,)
     n_function: str = "power"  # Options: power, exp, exp_squared, linear
+    p_agg: float = 2.0 # p value for aggregating tree distances in OSbTS and TWD
 
 
 def train_eval(opt: Options):
@@ -82,6 +83,7 @@ def train_eval(opt: Options):
         weight_decay=opt.weight_decay,
         gpus=opt.gpus,
         n_function=opt.n_function,
+        p_agg=opt.p_agg
     )
 
     pretrain_start = time.time()
