@@ -114,10 +114,6 @@ class OSb_TSConcurrentLines:
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
-            res_op = self.compute_via_optimization(h_edges, w_edges)
-            res_taylor = self.compute_via_taylor(h_edges, w_edges)
-            print(f"GTW via optimization: {res_op}")
-            print(f"GTW via Taylor approx.: {res_taylor}")
             return self.compute_via_taylor(h_edges, w_edges)
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
@@ -224,7 +220,6 @@ class OSb_TSConcurrentLines:
 
                     k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
             k = k.detach()
-            print(f"Optimal k for tree {t}: {k.item()}")
             kh = k * h_flat
             loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
@@ -251,9 +246,6 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-            print(f"A3: {A3}")
-            print(f"A2^3/2: {A2.pow(1.5)}")
-            print(f"A2^3/2/A3: {(A2.pow(1.5))/A3}")
             dist_per_tree = (
                 torch.sqrt(2.0 * A2 + eps)
                 + A3 / (3.0 * (A2 + eps))
@@ -262,9 +254,6 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
-            print(f"A4: {A4}")
-            print(f"A2^2: {A2.pow(2)}")
-            print(f"A2^2/A4: {A2.pow(2)/A4}")
             dist_per_tree = (
                 2.0 * torch.sqrt(A2 + eps)
                 + A4 / (2.0 * (A2 + eps).pow(1.5))
