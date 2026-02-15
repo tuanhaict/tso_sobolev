@@ -165,12 +165,10 @@ class OSb_TSConcurrentLines:
         # Sum over edges and lines for each tree separately
         weighted_sum_per_tree = torch.sum(w_edges * torch.pow(h_edges, p), dim=[-1, -2])  # (num_trees,)
         
-        # Compute distance for each tree
-        distances_per_tree = torch.pow(weighted_sum_per_tree, 1.0 / p)  # (num_trees,)
-        
         # Mean over trees
-        gtw = torch.mean(distances_per_tree)
-        return gtw
+        distances_per_tree = torch.pow(weighted_sum_per_tree, 1 / p)
+
+        return (distances_per_tree.pow(self.p_agg).mean()).pow(1 / self.p_agg)
     
     def compute_via_optimization(self, h_edges, w_edges):
         """
