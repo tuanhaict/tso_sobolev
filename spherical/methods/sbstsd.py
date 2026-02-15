@@ -80,7 +80,6 @@ class SbSTSD():
         subtract_mass = (torch.abs(sub_mass_target_cumsum) ** self.p) * beta_edge_weight
         subtract_mass_sum = torch.sum(subtract_mass, dim=[-1,-2])
         tw = torch.mean(subtract_mass_sum) ** (1/self.p)
-        print("Beta / we:", beta_edge_weight / edge_length)
         return tw, sub_mass_target_cumsum, beta_edge_weight
 
 
