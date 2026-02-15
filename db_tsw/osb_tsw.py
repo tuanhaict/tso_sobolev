@@ -15,7 +15,7 @@ class OSb_TSConcurrentLines:
     
     def __init__(self, n_function='exp', p=2, delta=2, 
                  mass_division='distance_based', device="cuda",
-                 optimization_method='bounded'):
+                 optimization_method='bounded', p_agg=2):
         """
         Args:
             n_function: Type of N-function. Options:
@@ -35,7 +35,7 @@ class OSb_TSConcurrentLines:
         self.delta = delta
         self.mass_division = mass_division
         self.optimization_method = optimization_method
-        self.p_agg = 2
+        self.p_agg = p_agg
         assert self.mass_division in ['uniform', 'distance_based'], \
             "Invalid mass division. Must be one of 'uniform', 'distance_based'"
         

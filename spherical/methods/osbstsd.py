@@ -5,7 +5,7 @@ from methods.n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, E
 from utils.func import transform
 
 class OSbSTSD():
-    def __init__(self, ntrees=200, nlines=5, p=2, delta=2, device="cuda", type="normal", n_function="power"):
+    def __init__(self, ntrees=200, nlines=5, p=2, delta=2, device="cuda", type="normal", n_function="power", p_agg=2):
         """
         Class for computing the TW distance between two point clouds
         Args:
@@ -23,7 +23,7 @@ class OSbSTSD():
         self.delta = delta
         self.device = device
         self.eps = 1e-6
-        self.p_agg = 2
+        self.p_agg = p_agg
         if type not in ["normal", "generalized"]:
             raise ValueError("type should be either normal or generalized")
         self.type = type
