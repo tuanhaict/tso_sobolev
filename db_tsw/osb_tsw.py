@@ -251,7 +251,9 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-
+            print(f"A3: {A3}")
+            print(f"A2^3/2: {A2.pow(1.5)}")
+            print(f"A2^3/2/A3: {(A2.pow(1.5))/A3}")
             dist_per_tree = (
                 torch.sqrt(2.0 * A2 + eps)
                 + A3 / (3.0 * (A2 + eps))
@@ -260,7 +262,9 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
-
+            print(f"A4: {A4}")
+            print(f"A2^2: {A2.pow(2)}")
+            print(f"A2^2/A4: {A2.pow(2)/A4}")
             dist_per_tree = (
                 2.0 * torch.sqrt(A2 + eps)
                 + A4 / (2.0 * (A2 + eps).pow(1.5))
