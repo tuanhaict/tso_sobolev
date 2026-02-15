@@ -241,22 +241,22 @@ class OSb_TSConcurrentLines:
             A_p = torch.sum(w * h**p, dim=1)
 
             Cp = (p - 1)**(1.0 / p) + (p - 1)**(-(p - 1) / p)
-            dist_per_tree = Cp * (A_p + eps).pow(1.0 / p)
+            dist_per_tree = Cp * (A_p).pow(1.0 / p)
 
         elif isinstance(self.n_function, ExpNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
             dist_per_tree = (
-                torch.sqrt(2.0 * A2 + eps)
-                + A3 / (3.0 * (A2 + eps))
+                torch.sqrt(2.0 * A2)
+                + A3 / (3.0 * (A2))
             )
 
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
             dist_per_tree = (
-                2.0 * torch.sqrt(A2 + eps)
-                + A4 / (2.0 * (A2 + eps).pow(1.5))
+                2.0 * torch.sqrt(A2)
+                + A4 / (2.0 * (A2).pow(1.5))
             )
         elif isinstance(self.n_function, LinearNFunction):
             dist_per_tree = torch.sum(w * torch.abs(h), dim=1)
@@ -265,8 +265,8 @@ class OSb_TSConcurrentLines:
             A4 = torch.sum(w * h**4, dim=1)
 
             dist_per_tree = (
-                torch.sqrt(A2 + eps)
-                + A4 / (4.0 * (A2 + eps).pow(1.5))
+                torch.sqrt(A2)
+                + A4 / (4.0 * (A2).pow(1.5))
             )
 
         elif isinstance(self.n_function, ExpHalfLinearCorrectedNFunction):
@@ -274,8 +274,8 @@ class OSb_TSConcurrentLines:
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
 
             dist_per_tree = (
-                torch.sqrt((A2 + eps)/2.0)
-                + A3 / (6.0 * (A2 + eps))
+                torch.sqrt((A2)/2.0)
+                + A3 / (6.0 * (A2))
             )
 
         else:
