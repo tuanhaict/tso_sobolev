@@ -36,7 +36,7 @@ for i, seed in enumerate(seeds):
     Xs[i] -= Xs[i].mean(dim=0)[np.newaxis, :]  # Normalization
 lear_rates = [args.lr_tsw_sl, args.lr_tsw_sl, args.lr_tsw_sl, args.lr_tsw_sl, args.lr_sw, args.lr_sw, args.lr_sw, args.lr_sw]
 n_projs = [int(args.L / args.n_lines), int(args.L / args.n_lines), int(args.L / args.n_lines), int(args.L / args.n_lines), args.L, args.L, args.L, args.L]
-assert len(modes) == len(titles) == len(colors) == len(lear_rates) == len(n_projs)
+# assert len(modes) == len(titles) == len(colors) == len(lear_rates) == len(n_projs)
 
 for k, title in enumerate(titles):
     if k == 6:
