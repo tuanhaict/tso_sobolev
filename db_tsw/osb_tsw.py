@@ -114,7 +114,10 @@ class OSb_TSConcurrentLines:
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
-            return self.compute_via_taylor(h_edges, w_edges)
+            taylor_dist = self.compute_via_taylor(h_edges, w_edges)
+            optimization_dist = self.compute_via_optimization(h_edges, w_edges)
+            print(f"Taylor approximation: {taylor_dist.item():.4f}, Optimization: {optimization_dist.item():.4f}")
+            return taylor_dist
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
         """

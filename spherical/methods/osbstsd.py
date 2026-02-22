@@ -62,7 +62,11 @@ class OSbSTSD():
         h_edges, w_edges = self.compute_edge_mass_and_weights(mass_X, mass_Y, combined_axis_coordinate)
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
-        return self.compute_via_taylor(h_edges, w_edges)
+        taylor_dist = self.compute_via_taylor(h_edges, w_edges)
+        optimization_dist = self.compute_via_optimization(h_edges, w_edges)
+        print(f"Taylor approximation: {taylor_dist.item():.4f}, Optimization: {optimization_dist.item():.4f}")
+        return taylor_dist
+        # return self.compute_via_taylor(h_edges, w_edges)
     def compute_via_taylor(self, h_edges, w_edges):
         # (T, L*E)
         h = h_edges.reshape(h_edges.shape[0], -1)
@@ -129,7 +133,61 @@ class OSbSTSD():
         distances_per_tree = torch.pow(weighted_sum_per_tree, 1 / p)
 
         return (distances_per_tree.pow(self.p_agg).mean()).pow(1 / self.p_agg)
+    def compute_via_optimization(self, h_edges, w_edges):
+        """
+        Compute using univariate optimization for general N-functions
+        using implicit differentiation (detach k*).
 
+        h_edges: (T, L, E)  |h(e)|, requires_grad=True
+        w_edges: (T, L, E)  w_e, no grad
+        """
+        num_trees = h_edges.shape[0]
+        device = h_edges.device
+
+        distances_per_tree = []
+
+        for t in range(num_trees):
+            h = h_edges[t]        # (L, E)
+            w = w_edges[t]        # (L, E)
+
+            # Collapse lines + edges into one dimension (sum_e)
+            h_flat = h.reshape(-1)
+            w_flat = w.reshape(-1)
+
+            # -----------------------------
+            # 1️⃣ Solve k* (NO GRAD)
+            # -----------------------------
+            with torch.no_grad():
+                # init k using inverse mean scale
+                k = 1.0 / (h_flat.mean() + 1e-8)
+
+                for _ in range(100):  # 3–5 Newton steps are enough
+                    kh = k * h_flat
+
+                    Phi = self.n_function(kh)
+                    Phi_p = self.n_function.derivative(kh)
+                    Phi_pp = self.n_function.second_derivative(kh)
+
+                    sum_Phi = torch.sum(w_flat * Phi)
+                    sum_Phi_p = torch.sum(w_flat * h_flat * Phi_p)
+                    sum_Phi_pp = torch.sum(w_flat * h_flat**2 * Phi_pp)
+
+                    Fp = -(1.0 + sum_Phi) / k**2 + sum_Phi_p / k
+                    Fpp = (
+                        2.0 * (1.0 + sum_Phi) / k**3
+                        - 2.0 * sum_Phi_p / k**2
+                        + sum_Phi_pp / k
+                    )
+
+                    k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
+            k = k.detach()
+            kh = k * h_flat
+            loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
+            distances_per_tree.append(loss_t)
+        # Mean over trees
+        dist_per_tree = torch.stack(distances_per_tree)
+
+        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
     def compute_edge_mass_and_weights(self, mass_X, mass_Y, combined_axis_coordinate):
         """
         Args:
