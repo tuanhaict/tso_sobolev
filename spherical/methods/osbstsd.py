@@ -98,7 +98,7 @@ class OSbSTSD():
             #     + A4 / (2.0 * (A2 ).pow(1.5))
             # )
             dist_per_tree = (
-                torch.sqrt(A2)
+                2.0*torch.sqrt(A2)
             )
         elif isinstance(self.n_function, LinearNFunction):
             dist_per_tree = torch.sum(w * torch.abs(h), dim=1)
