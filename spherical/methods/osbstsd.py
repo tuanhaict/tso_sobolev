@@ -62,11 +62,7 @@ class OSbSTSD():
         h_edges, w_edges = self.compute_edge_mass_and_weights(mass_X, mass_Y, combined_axis_coordinate)
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
-        taylor_dist = self.compute_via_taylor(h_edges, w_edges)
-        optimization_dist = self.compute_via_optimization(h_edges, w_edges)
-        print(f"Taylor approximation: {taylor_dist.item():.4f}, Optimization: {optimization_dist.item():.4f}")
-        return taylor_dist
-        # return self.compute_via_taylor(h_edges, w_edges)
+        return self.compute_via_taylor(h_edges, w_edges)
     def compute_via_taylor(self, h_edges, w_edges):
         # (T, L*E)
         h = h_edges.reshape(h_edges.shape[0], -1)
@@ -161,7 +157,7 @@ class OSbSTSD():
                 # init k using inverse mean scale
                 k = 1.0 / (h_flat.mean() + 1e-8)
 
-                for _ in range(5):  # 3–5 Newton steps are enough
+                for _ in range(100):  # 3–5 Newton steps are enough
                     kh = k * h_flat
 
                     Phi = self.n_function(kh)

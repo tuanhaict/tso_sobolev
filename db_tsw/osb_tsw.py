@@ -115,8 +115,6 @@ class OSb_TSConcurrentLines:
             return self.compute_closed_form(h_edges, w_edges)
         else:
             taylor_dist = self.compute_via_taylor(h_edges, w_edges)
-            optimization_dist = self.compute_via_optimization(h_edges, w_edges)
-            print(f"Taylor approximation: {taylor_dist.item():.4f}, Optimization: {optimization_dist.item():.4f}")
             return taylor_dist
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
@@ -201,7 +199,7 @@ class OSb_TSConcurrentLines:
                 # init k using inverse mean scale
                 k = 1.0 / (h_flat.mean() + 1e-8)
 
-                for _ in range(5):  # 3–5 Newton steps are enough
+                for _ in range(100):  # 3–5 Newton steps are enough
                     kh = k * h_flat
 
                     Phi = self.n_function(kh)
