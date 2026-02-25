@@ -151,13 +151,13 @@ class OSbSTSD():
             w_flat = w.reshape(-1)
 
             # -----------------------------
-            # 1️⃣ Solve k* (NO GRAD)
+            # Solve k*
             # -----------------------------
             with torch.no_grad():
                 # init k using inverse mean scale
                 k = 1.0 / (h_flat.mean() + 1e-8)
 
-                for _ in range(100):  # 3–5 Newton steps are enough
+                for _ in range(100): 
                     kh = k * h_flat
 
                     Phi = self.n_function(kh)
