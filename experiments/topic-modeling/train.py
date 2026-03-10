@@ -33,6 +33,10 @@ def get_dataset(dataset_name: str, data_dir: Path) -> Dataset:
     data = Dataset()
     if dataset_name == 'M10':
         data.fetch_dataset("M10", data_home='.')
+    elif dataset_name == 'BBC_News':
+        data.fetch_dataset("BBC_News", data_home='.')
+    elif dataset_name == 'DBLP':
+        data.fetch_dataset("DBLP", data_home='.')
     else:
         raise ValueError('Missing or unknown dataset name.')
     return data
