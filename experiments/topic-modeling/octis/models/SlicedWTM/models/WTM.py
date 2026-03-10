@@ -23,7 +23,7 @@ class SWTM:
     def __init__(self, bow_dim=10000, n_topic=20, device=None,
                  taskname=None, dropout=0.0, batch_size=256, learning_rate=1e-3,
                  num_epochs=100, log_every=5, beta=1.0, dist='gmm_std', loss_type='sbtsw',
-                 num_projections=100, n_trees=100, delta=1, p=2, kappa=50):
+                 num_projections=100, n_trees=100, delta=1, p=2, kappa=50, n_function="power", p_agg=2):
         self.bow_dim = bow_dim
         self.n_topic = n_topic
         self.wae = WAE(encode_dims=[bow_dim, 1024, 512, n_topic], decode_dims=[n_topic, 512, bow_dim], dropout=dropout, nonlin='relu')
@@ -39,6 +39,8 @@ class SWTM:
         self.beta = beta
         self.p = p
         self.kappa = kappa
+        self.n_function = n_function
+        self.p_agg = p_agg
 
         self.num_projections = num_projections
         self.n_trees = n_trees
@@ -90,7 +92,8 @@ class SWTM:
 
                 if self.loss_type == "sbtsw":
                     ot_loss = self.wae.sbtsw_loss(z, prior, p=self.p, delta=self.delta, ntrees=self.n_trees, nlines=nlines)
-
+                elif self.loss_type == "osbtsw":
+                    ot_loss = self.wae.osbtsw_loss(z, prior, p=self.p, delta=self.delta, ntrees=self.n_trees, nlines=nlines, n_function=self.n_function, p_agg=self.p_agg)
                 s = torch.sum(bows)/len(bows)
                 lamb = (5.0*s*torch.log(torch.tensor(1.0 *bows.shape[-1]))/torch.log(torch.tensor(2.0)))
                 ot_loss = ot_loss * lamb

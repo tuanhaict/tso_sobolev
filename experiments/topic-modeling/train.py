@@ -179,6 +179,8 @@ def main():
                         n_trees=cfg.n_trees,
                         delta=cfg.delta,
                         p=cfg.p,
+                        n_function=cfg.n_function,
+                        p_agg=cfg.p_agg,
                     )
                     logger.info("Training S2WTM...")
                 else:
@@ -195,6 +197,8 @@ def main():
                         n_trees=cfg.n_trees,
                         delta=cfg.delta,
                         p=cfg.p,
+                        n_function=cfg.n_function,
+                        p_agg=cfg.p_agg,
                     )
 
                     logger.info("Training SWTM...")

@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.mixture import GaussianMixture
 from octis.models.sb_tsw import Sb_TSConcurrentLines, sb_generate_trees_frames
+from octis.models.osb_tsw import OSb_TSConcurrentLines, osb_generate_trees_frames
 from octis.models.tsw.tsw import TSW
 from octis.models.TWConcurrentLines import TWConcurrentLines, generate_trees_frames
 
@@ -99,6 +100,11 @@ class WAE(nn.Module):
         sbtsw = Sb_TSConcurrentLines(p=p, delta=delta)
         theta, intercept = sb_generate_trees_frames(ntrees, nlines, dn)
         return sbtsw(z, prior, theta, intercept)
+    def osbtsw_loss(self, z, prior, p=2, delta=1, ntrees=100, nlines=50, n_function="power", p_agg=2):
+        dn = z.shape[-1]
+        osbtsw = OSb_TSConcurrentLines(p=p, delta=delta, n_function=n_function, p_agg=p_agg)
+        theta, intercept = osb_generate_trees_frames(ntrees, nlines, dn)
+        return osbtsw(z, prior, theta, intercept)
 
     def c0tsw_loss(self, z, prior, p=2, delta=1, ntrees=100, nlines=50):
         dn = z.shape[-1]

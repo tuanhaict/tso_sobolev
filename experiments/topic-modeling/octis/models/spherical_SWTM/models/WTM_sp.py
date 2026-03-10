@@ -12,7 +12,7 @@ class S2WTM:
     def __init__(self, bow_dim=10000, n_topic=20, device=None,
                  taskname=None, dropout=0.0, batch_size=256, learning_rate=1e-3,
                  num_epochs=100, log_every=5, beta=1.0, dist='gmm_std', loss_type='sph_sw',
-                 num_projections=100, ftype='linear', degree=3, p=2, n_trees=None, delta=None
+                 num_projections=100, ftype='linear', degree=3, p=2, n_trees=None, delta=None, n_function="power", p_agg=2
                  ):
         self.bow_dim = bow_dim
         self.n_topic = n_topic
@@ -37,6 +37,8 @@ class S2WTM:
         
         self.n_trees = n_trees
         self.delta = delta
+        self.n_function = n_function
+        self.p_agg = p_agg
 
         self.wae = WAE(encode_dims=[bow_dim, 1024, 512, n_topic], decode_dims=[n_topic, 512, bow_dim],
                        dropout=dropout, nonlin='relu', dist=self.dist, batch_size=self.batch_size)
@@ -113,6 +115,17 @@ class S2WTM:
                                                           delta=self.delta,
                                                           device=self.device,
                                                           p=self.p)
+                elif self.loss_type=='osbstsw':
+                    assert self.n_trees is not None and self.delta is not None
+                    ot_loss = self.wae.osbstsw_cost(theta_q,
+                                                          theta_prior,
+                                                          n_trees=self.n_trees,
+                                                          n_lines=self.num_projections//self.n_trees,
+                                                          delta=self.delta,
+                                                          device=self.device,
+                                                          p=self.p,
+                                                          n_function=self.n_function,
+                                                          p_agg=self.p_agg)
                 else:
                     raise Exception('The following OT-based loss: {} not implemented'.format(self.loss_type))
 

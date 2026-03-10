@@ -60,6 +60,8 @@ def get_config(argv=None):
                    help="Force retrain even if outputs exist.")
     p.add_argument("--approx_order", type=int, default=7,
                    help="Rounding order for OCTIS save_model_output.")
+    p.add_argument("--n_function", type=str, default="power", help="N-function for OSBWTM.")
+    p.add_argument("--p_agg", type=float, default=2, help="Aggregation parameter for OSBWTM.")
 
 
     args = p.parse_args(argv)

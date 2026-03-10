@@ -14,7 +14,7 @@ class S2WTM(AbstractModel):
                  use_partitions=False, use_validation=False, num_samples=10,
                  dropout=0.5, learning_rate=1e-3, log_every=1e9, beta=1.0,
                  dist='unif_sphere', loss_type='sph_sw', num_projections=500,
-                 ftype='linear', degree=3, p=2, n_trees=None, delta=None,
+                 ftype='linear', degree=3, p=2, n_trees=None, delta=None, n_function="power", p_agg=2
                  ):
 
         assert not(use_validation and use_partitions), "Validation data is not needed for S2WTM. \
@@ -40,6 +40,8 @@ class S2WTM(AbstractModel):
         
         self.hyperparameters['n_trees'] = n_trees
         self.hyperparameters['delta'] = delta
+        self.hyperparameters['n_function'] = n_function
+        self.hyperparameters['p_agg'] = p_agg
         
         self.early_stopping = None
         self.use_partitions = use_partitions
@@ -80,6 +82,8 @@ class S2WTM(AbstractModel):
                 degree=self.hyperparameters['degree'],
                 n_trees=self.hyperparameters['n_trees'],
                 delta=self.hyperparameters['delta'],
+                n_function=self.hyperparameters['n_function'],
+                p_agg=self.hyperparameters['p_agg'],
                 )
             
             self.model.train(train_data=x_train,
@@ -116,6 +120,8 @@ class S2WTM(AbstractModel):
                 degree=self.hyperparameters['degree'],
                 n_trees=self.hyperparameters['n_trees'],
                 delta=self.hyperparameters['delta'],
+                n_function=self.hyperparameters['n_function'],
+                p_agg=self.hyperparameters['p_agg'],
                 )
 
             self.model.train(

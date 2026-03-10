@@ -8,7 +8,7 @@ from octis.models.spherical_SWTM.models.distributions.power_spherical import *
 from octis.models.spherical_SWTM.models.distributions.von_mises_fisher import rand_von_mises_fisher
 from octis.models.tsw.tsw import SphericalTSW
 from octis.models.sb_tsw import SbSTSD 
-
+from octis.models.osb_tsw import OSbSTSD
 
 # WAE model
 class WAE(nn.Module):
@@ -606,7 +606,7 @@ class WAE(nn.Module):
         )
         distance = stsw_obj(Xs, Xt)
         return distance
-
+    
     def sbstsw_cost(self, Xs, Xt, n_trees, n_lines, delta, device, p=2):
         # spherical tree slice loss
 
@@ -620,6 +620,23 @@ class WAE(nn.Module):
             type='normal'
         )
         distance = stsw_obj(Xs, Xt)
+        return distance
+    
+    def osbstsw_cost(self, Xs, Xt, n_trees, n_lines, delta, device, p=2, n_function="power", p_agg=2):
+        # spherical tree slice loss
+
+        # Initialize Spherical TSW
+        ostsw_obj = OSbSTSD(
+            ntrees=n_trees,
+            nlines=n_lines,
+            p=p,
+            delta=delta,
+            device=device,
+            type='normal',
+            n_function=n_function,
+            p_agg=p_agg
+        )
+        distance = ostsw_obj(Xs, Xt)
         return distance
 
     def sp_swd_loss(self, Xs, Xt, num_projections, device, u_weights=None, v_weights=None, p=2):
