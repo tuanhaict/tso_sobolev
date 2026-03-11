@@ -75,7 +75,7 @@ class SWTM:
 
                 txts, bows = data
                 bows = bows.to(self.device)
-
+                batch_size = bows.shape[0]
                 bows_recon, z = self.wae(bows)
                 if self.dist == "dirichlet":
                     z = F.softmax(z, dim=1)
@@ -105,7 +105,11 @@ class SWTM:
 
                 trainloss_lst.append(loss.item()/len(bows))
                 epochloss_lst.append(loss.item()/len(bows))
-                if (iter+1) % 50 == 0:
+                if batch_size >= 256:
+                    log_interval = 5
+                else:
+                    log_interval = 50
+                if (iter+1) % log_interval == 0:
                     print(f'Epoch {(epoch+1):>3d}\tIter {(iter+1):>4d}\tLoss:{loss.item()/len(bows):<.7f}\tRec Loss:{rec_loss.item()/len(bows):<.7f}\t OT loss:{ot_loss.item()/len(bows):<.7f}')
             #scheduler.step()
             if (epoch+1) % self.log_every == 0:

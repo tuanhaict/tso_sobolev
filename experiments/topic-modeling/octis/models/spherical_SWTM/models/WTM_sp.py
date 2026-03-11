@@ -96,7 +96,7 @@ class S2WTM:
 
                 txts, bows = data
                 bows = bows.to(self.device)
-
+                batch_size = bows.shape[0]
                 bows_recon, theta_q = self.wae(bows)
                 theta_prior = self.wae.sample(ori_data=bows).to(self.device)[:theta_q.shape[0]]
 
@@ -140,7 +140,11 @@ class S2WTM:
 
                 trainloss_lst.append(loss.item()/len(bows))
                 epochloss_lst.append(loss.item()/len(bows))
-                if verbose and ((iter+1) % 50 == 0):
+                if batch_size >= 256:
+                    log_interval = 5
+                else:
+                    log_interval = 50
+                if verbose and ((iter+1) % log_interval == 0):
                     print('Epoch {:>3d}\tIter {:>4d}\tLoss:{:.7f}\tRec Loss:{:.7f}\tOT-Loss:{:.7f}'.format(
                         epoch+1,
                         iter+1,
