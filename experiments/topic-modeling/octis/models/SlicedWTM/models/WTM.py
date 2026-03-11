@@ -105,8 +105,8 @@ class SWTM:
 
                 trainloss_lst.append(loss.item()/len(bows))
                 epochloss_lst.append(loss.item()/len(bows))
-                # if (iter+1) % 10 == 0:
-                #     print(f'Epoch {(epoch+1):>3d}\tIter {(iter+1):>4d}\tLoss:{loss.item()/len(bows):<.7f}\tRec Loss:{rec_loss.item()/len(bows):<.7f}\t OT loss:{ot_loss.item()/len(bows):<.7f}')
+                if (iter+1) % 50 == 0:
+                    print(f'Epoch {(epoch+1):>3d}\tIter {(iter+1):>4d}\tLoss:{loss.item()/len(bows):<.7f}\tRec Loss:{rec_loss.item()/len(bows):<.7f}\t OT loss:{ot_loss.item()/len(bows):<.7f}')
             #scheduler.step()
             if (epoch+1) % self.log_every == 0:
                 save_name = f'./ckpt/WTM_{self.taskname}_tp{self.n_topic}_{self.dist}_{time.strftime("%Y-%m-%d-%H-%M", time.localtime())}_{epoch+1}.ckpt'

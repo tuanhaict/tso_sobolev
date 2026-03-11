@@ -140,7 +140,7 @@ class S2WTM:
 
                 trainloss_lst.append(loss.item()/len(bows))
                 epochloss_lst.append(loss.item()/len(bows))
-                if verbose and ((iter+1) % 10 == 0):
+                if verbose and ((iter+1) % 50 == 0):
                     print('Epoch {:>3d}\tIter {:>4d}\tLoss:{:.7f}\tRec Loss:{:.7f}\tOT-Loss:{:.7f}'.format(
                         epoch+1,
                         iter+1,
