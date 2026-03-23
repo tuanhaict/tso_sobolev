@@ -79,8 +79,8 @@ if __name__ == "__main__":
     X = np.array(X)
     X = torch.tensor(X, dtype=torch.float)
     Xt = X.clone().detach()
-    trainloader = DataLoader(Xt, batch_size=args.batch_size, shuffle=True)
-    dataiter = iter(cycle(trainloader))
+    # trainloader = DataLoader(Xt, batch_size=args.batch_size, shuffle=True)
+    # dataiter = iter(cycle(trainloader))
 
     if args.d_func == "stsw":
         d_func = stswd.stswd
@@ -111,8 +111,13 @@ if __name__ == "__main__":
     
     results = []
     for s in range(args.ntry):
+        set_seed(s)
+        g = torch.Generator()
+        g.manual_seed(s)
+        trainloader = DataLoader(Xt, batch_size=args.batch_size, shuffle=True, generator=g)
+        dataiter = iter(cycle(trainloader))
         results.append(run_exp(dataiter, d_func, d_args, mus, batch_size=args.batch_size, n_steps=args.epochs, 
-                                           lr=args.lr, kappa=kappa, device=device, random_seed=s))
+                                        lr=args.lr, kappa=kappa, device=device, random_seed=s))
 
     runtimes = [r[0] for r in results]
     nll= np.array([r[1] for r in results])

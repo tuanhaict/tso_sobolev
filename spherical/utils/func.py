@@ -34,4 +34,5 @@ def set_seed(manualSeed=666):
     torch.cuda.manual_seed(manualSeed)
     torch.cuda.manual_seed_all(manualSeed)
     torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     os.environ['PYTHONHASHSEED'] = str(manualSeed)
