@@ -17,9 +17,9 @@ from tqdm import tqdm
 dataset_name = args.dataset_name
 nofiterations = args.num_iter
 seeds = range(1,args.num_seeds+1)
-modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
+modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
 # titles = ['OSbTSW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'MaxSW', 'SW']
-titles = ['OSbTSW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS']
+titles = ['OSbTSW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'SW']
 colors = ['blue', 'orange', 'red', 'green', 'purple', 'brown', 'pink', 'cyan']
 
 # Arrays to store results
@@ -150,25 +150,29 @@ for k, title in enumerate(titles):
                 end_time = time.time()  # End timing
                 # print(f"Time taken for TWD orthogonal: {end_time - start_time:.4f} seconds")
 
-            # elif k == 4:
-            #     start_time = time.time()  # Start timing
-            #     loss += gradient_flow.LCVSW(X.to(device), Y.to(device), L=args.L)
-            #     end_time = time.time()  # End timing
-            #     # print(f"Time taken for LCVSW: {end_time - start_time:.4f} seconds")
+            elif k == 4:
+                start_time = time.time()  # Start timing
+                loss += gradient_flow.LCVSW(X.to(device), Y.to(device), L=args.L)
+                end_time = time.time()  # End timing
+                # print(f"Time taken for LCVSW: {end_time - start_time:.4f} seconds")
 
-            # elif k == 5:
-            #     start_time = time.time()  # Start timing
-            #     l, theta = gsw_res.SWGG_CP(X.to(device), Y.to(device), theta=None)
-            #     loss += l
-            #     end_time = time.time()  # End timing
-            #     # print(f"Time taken for SWGG_CP: {end_time - start_time:.4f} seconds")
-
+            elif k == 5:
+                start_time = time.time()  # Start timing
+                l, theta = gsw_res.SWGG_CP(X.to(device), Y.to(device), theta=None)
+                loss += l
+                end_time = time.time()  # End timing
+                # print(f"Time taken for SWGG_CP: {end_time - start_time:.4f} seconds")
+            elif k == 6:
+                start_time = time.time()  # Start timing
+                loss += gsw_res.sw(X.to(device), Y, theta=None)
+                end_time = time.time()
+                # print(f"Time taken for TWD orthogonal: {end_time - start_time:.4f} seconds")
             # elif k == 6:
             #     start_time = time.time()  # Start timing
             #     l, theta, loss_max = gsw_res.max_sw(X.to(device), Y, iterations=100, lr=lear_rates[k])
             #     loss += l
             #     end_time = time.time()  # End timing
-            #     # print(f"Time taken for max SW: {end_time - start_time:.4f} seconds")
+                # print(f"Time taken for max SW: {end_time - start_time:.4f} seconds")
             # elif k == 7:
             #     start_time = time.time()  # Start timing
             #     loss += gsw_res.sw(X.to(device), Y, theta=None)

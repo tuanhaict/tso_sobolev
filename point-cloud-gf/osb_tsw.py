@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
-from methods.n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, PowerNFunction
+from n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, PowerNFunction
 from utils.func import transform
 
 class OSb_TSConcurrentLines():
