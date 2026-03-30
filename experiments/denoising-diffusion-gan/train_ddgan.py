@@ -29,6 +29,7 @@ import time
 import wandb
 from db_tsw.db_tsw import TWConcurrentLines
 from db_tsw.sb_tsw import Sb_TSConcurrentLines 
+from db_tsw.osb_tsw import OSb_TSConcurrentLines
 from db_tsw.utils import generate_trees_frames
 
 def copy_source(file, output_dir):
@@ -294,6 +295,8 @@ def train(rank, args):
     
     def TS_Sobolev(X, Y, theta, intercept, SbTS_obj):
         return SbTS_obj(X, Y, theta, intercept)
+    def TS_GSobolev(X, Y, theta, intercept, OSbTS_obj):
+        return OSbTS_obj(X, Y, theta, intercept)
         
     
     from score_sde.models.discriminator import Discriminator_small
@@ -420,7 +423,18 @@ def train(rank, args):
             
         pixel_mean = pixel_mean / num_sample
         SbTS_obj = torch.compile(Sb_TSConcurrentLines(p=args.ts_sobolev_p, delta=args.twd_delta, mass_division='distance_based', device=device))
-        
+    elif args.loss == 'ts_gsobolev':
+        # calculate mean of pixel values of the dataset
+        pixel_mean = 0
+        num_sample = 0
+        d = 0
+        for i, (x, _) in enumerate(data_loader):
+            pixel_mean += x.mean()
+            num_sample += x.shape[0]
+            d = x.shape[1] * x.shape[2] * x.shape[3] + 1
+            
+        pixel_mean = pixel_mean / num_sample
+        OSbTS_obj = torch.compile(OSb_TSConcurrentLines(p=args.ts_sobolev_p, delta=args.twd_delta, mass_division='distance_based', device=device, n_function=args.n_function, p_agg=args.p_agg))   
     start_time = time.time()
     for epoch in range(init_epoch, args.num_epoch+1):
         if rank == 0:
@@ -431,6 +445,9 @@ def train(rank, args):
             theta, intercept = generate_trees_frames(ntrees=args.T, nlines=args.L, d=d, 
                                                      mean=pixel_mean, std=args.twd_std, device=device, gen_mode=args.twd_gen_mode)
         elif args.loss == 'ts_sobolev':
+            theta, intercept = generate_trees_frames(ntrees=args.T, nlines=args.L, d=d, 
+                                                     mean=pixel_mean, std=args.twd_std, device=device, gen_mode=args.twd_gen_mode)
+        elif args.loss == 'ts_gsobolev':
             theta, intercept = generate_trees_frames(ntrees=args.T, nlines=args.L, d=d, 
                                                      mean=pixel_mean, std=args.twd_std, device=device, gen_mode=args.twd_gen_mode)
         for iteration, (x, y) in enumerate(data_loader):
@@ -551,6 +568,8 @@ def train(rank, args):
                 errG = 2*CLTWD(X,Y,theta,intercept,TWD_obj) - CLTWD(X1,X2,theta,intercept,TWD_obj) - CLTWD(Y1,Y2,theta,intercept,TWD_obj)
             elif(args.loss=='ts_sobolev'):
                 errG = 2*TS_Sobolev(X,Y,theta,intercept,SbTS_obj) - TS_Sobolev(X1,X2,theta,intercept,SbTS_obj) - TS_Sobolev(Y1,Y2,theta,intercept,SbTS_obj)
+            elif(args.loss=='ts_gsobolev'):
+                errG = 2*TS_GSobolev(X,Y,theta,intercept,OSbTS_obj) - TS_GSobolev(X1,X2,theta,intercept,OSbTS_obj) - TS_GSobolev(Y1,Y2,theta,intercept,OSbTS_obj)
             errG.backward()
             optimizerG.step()
                 
@@ -744,6 +763,8 @@ if __name__ == '__main__':
     parser.add_argument('--wandb_entity', type=str, default='twd', help='wandb entity, username or team name')
     parser.add_argument('--wandb_run_name', type=str, default=None, 
                         help='wandb run name, if not specified, will be set to the current experiment name')
+    parser.add_argument('--n_function', type=str, default='power')
+    parser.add_argument('--p_agg', type=float, default=2)
 
    
     args = parser.parse_args()
