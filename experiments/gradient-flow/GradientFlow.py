@@ -40,8 +40,6 @@ n_projs = [int(args.L / args.n_lines), int(args.L / args.n_lines), int(args.L / 
 # assert len(modes) == len(titles) == len(colors) == len(lear_rates) == len(n_projs)
 
 for k, title in enumerate(titles):
-    if args.eval_sb and k != 3:
-        continue
     for i, seed in enumerate(seeds):
         np.random.seed(seed)
         torch.manual_seed(seed)
