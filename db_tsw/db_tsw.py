@@ -63,9 +63,11 @@ class TWConcurrentLines():
         edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
 
         # compute TW distance
-        subtract_mass = (torch.abs(sub_mass_target_cumsum) ** self.p) * edge_length
+        # subtract_mass = (torch.abs(sub_mass_target_cumsum) ** self.p) * edge_length
+        subtract_mass = (torch.abs(sub_mass_target_cumsum)) * edge_length
         subtract_mass_sum = torch.sum(subtract_mass, dim=[-1,-2])
-        tw = torch.mean(subtract_mass_sum) ** (1/self.p)
+        # tw = torch.mean(subtract_mass_sum) ** (1/self.p)
+        tw = torch.mean(subtract_mass_sum)
 
         return tw, sub_mass_target_cumsum, edge_length
 
