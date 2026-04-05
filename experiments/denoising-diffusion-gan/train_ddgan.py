@@ -31,6 +31,7 @@ from db_tsw.db_tsw import TWConcurrentLines
 from db_tsw.sb_tsw import Sb_TSConcurrentLines 
 from db_tsw.osb_tsw import OSb_TSConcurrentLines
 from db_tsw.utils import generate_trees_frames
+from db_tsw.n_tsw import NTWConcurrentLines
 
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
@@ -297,6 +298,8 @@ def train(rank, args):
         return SbTS_obj(X, Y, theta, intercept)
     def TS_GSobolev(X, Y, theta, intercept, OSbTS_obj):
         return OSbTS_obj(X, Y, theta, intercept)
+    def NTWD(X, Y, theta, intercept, NTWD_obj):
+        return NTWD_obj(X, Y, theta, intercept)
         
     
     from score_sde.models.discriminator import Discriminator_small
@@ -423,6 +426,18 @@ def train(rank, args):
             
         pixel_mean = pixel_mean / num_sample
         SbTS_obj = torch.compile(Sb_TSConcurrentLines(p=args.ts_sobolev_p, delta=args.twd_delta, mass_division='distance_based', device=device))
+    elif args.loss == 'n_tsw':
+        # calculate mean of pixel values of the dataset
+        pixel_mean = 0
+        num_sample = 0
+        d = 0
+        for i, (x, _) in enumerate(data_loader):
+            pixel_mean += x.mean()
+            num_sample += x.shape[0]
+            d = x.shape[1] * x.shape[2] * x.shape[3] + 1
+            
+        pixel_mean = pixel_mean / num_sample
+        NTSW_obj = torch.compile(NTWConcurrentLines(delta=args.twd_delta, mass_division='distance_based', device=device, noisy_mode=args.noisy_mode, lambda_=args.lambda_, p_noise=args.p_noise, p_agg=args.p_agg))
     elif args.loss == 'ts_gsobolev':
         # calculate mean of pixel values of the dataset
         pixel_mean = 0
@@ -448,6 +463,9 @@ def train(rank, args):
             theta, intercept = generate_trees_frames(ntrees=args.T, nlines=args.L, d=d, 
                                                      mean=pixel_mean, std=args.twd_std, device=device, gen_mode=args.twd_gen_mode)
         elif args.loss == 'ts_gsobolev':
+            theta, intercept = generate_trees_frames(ntrees=args.T, nlines=args.L, d=d, 
+                                                     mean=pixel_mean, std=args.twd_std, device=device, gen_mode=args.twd_gen_mode)
+        elif args.loss == 'n_tsw':
             theta, intercept = generate_trees_frames(ntrees=args.T, nlines=args.L, d=d, 
                                                      mean=pixel_mean, std=args.twd_std, device=device, gen_mode=args.twd_gen_mode)
         for iteration, (x, y) in enumerate(data_loader):
@@ -570,6 +588,8 @@ def train(rank, args):
                 errG = 2*TS_Sobolev(X,Y,theta,intercept,SbTS_obj) - TS_Sobolev(X1,X2,theta,intercept,SbTS_obj) - TS_Sobolev(Y1,Y2,theta,intercept,SbTS_obj)
             elif(args.loss=='ts_gsobolev'):
                 errG = 2*TS_GSobolev(X,Y,theta,intercept,OSbTS_obj) - TS_GSobolev(X1,X2,theta,intercept,OSbTS_obj) - TS_GSobolev(Y1,Y2,theta,intercept,OSbTS_obj)
+            elif(args.loss=='n_tsw'):
+                errG = 2*NTWD(X,Y,theta,intercept,NTSW_obj) - NTWD(X1,X2,theta,intercept,NTSW_obj) - NTWD(Y1,Y2,theta,intercept,NTSW_obj)
             errG.backward()
             optimizerG.step()
                 
@@ -765,6 +785,9 @@ if __name__ == '__main__':
                         help='wandb run name, if not specified, will be set to the current experiment name')
     parser.add_argument('--n_function', type=str, default='power')
     parser.add_argument('--p_agg', type=float, default=2)
+    parser.add_argument('--noisy_mode', type=str, default=None)
+    parser.add_argument('--lambda_', type=float, default=0.0)
+    parser.add_argument('--p_noise', type=float, default=2.0)
 
    
     args = parser.parse_args()

@@ -1,0 +1,124 @@
+import torch
+
+class NTWConcurrentLines():
+    def __init__(self, p=1, delta=2, mass_division='distance_based', device="cuda", noisy_mode=None, lambda_=0.0, p_noise =2, p_agg=2):
+        """
+        Class for computing the Tree Wasserstein distance between two distributions.
+        Args:
+            p: level of the norm
+            delta: negative inverse of softmax temperature for distance based mass division
+            mass_division: how to divide the mass, one of 'uniform', 'distance_based'
+            device: device to run the code, follow torch convention
+        """
+        self.device = device
+        self.p = p
+        self.delta = delta
+        self.mass_division = mass_division
+        self.noisy_mode = noisy_mode
+        self.lambda_ = lambda_
+        self.p_noise = p_noise
+        self.p_agg = p_agg
+
+        assert self.mass_division in ['uniform', 'distance_based'], \
+            "Invalid mass division. Must be one of 'uniform', 'distance_based'"
+
+    def __call__(self, X, Y, theta, intercept):
+        X = X.to(self.device)
+        Y = Y.to(self.device)
+        
+        # Get mass
+        N, dn = X.shape
+        M, dm = Y.shape
+        assert dn == dm and M == N
+        
+        combined_axis_coordinate, mass_XY = self.get_mass_and_coordinate(X, Y, theta, intercept)
+        tw = self.tw_concurrent_lines(mass_XY, combined_axis_coordinate)[0]
+
+        return tw
+
+    def tw_concurrent_lines(self, mass_XY, combined_axis_coordinate):
+        """
+        Args:
+            mass_XY: (num_trees, num_lines, 2 * num_points)
+            combined_axis_coordinate: (num_trees, num_lines, 2 * num_points)
+        """
+        coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
+        num_trees, num_lines = mass_XY.shape[0], mass_XY.shape[1]
+
+        # generate the cumulative sum of mass
+        sub_mass = torch.gather(mass_XY, 2, indices)
+        sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
+        sub_mass_right_cumsum = sub_mass + torch.sum(sub_mass, dim=-1, keepdim=True) - sub_mass_target_cumsum
+        mask_right = torch.nonzero(coord_sorted > 0, as_tuple=True)
+        sub_mass_target_cumsum[mask_right] = sub_mass_right_cumsum[mask_right]
+
+        ### compute edge length
+        # add root to the sorted coordinate by insert 0 to the first position <= 0
+        root = torch.zeros(num_trees, num_lines, 1, device=self.device) 
+        root_indices = torch.searchsorted(coord_sorted, root)
+        coord_sorted_with_root = torch.zeros(num_trees, num_lines, mass_XY.shape[2] + 1, device=self.device)
+        # distribute other points to the correct position
+        edge_mask = torch.ones_like(coord_sorted_with_root, dtype=torch.bool)
+        edge_mask.scatter_(2, root_indices, False)
+        coord_sorted_with_root[edge_mask] = coord_sorted.flatten()
+        # compute edge length
+        edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
+
+        # compute TW distance
+        abs_mass = torch.abs(sub_mass_target_cumsum)
+        if self.noisy_mode == 'interval':
+            edge_length = edge_length + self.lambda_
+        subtract_mass = abs_mass * edge_length
+        subtract_mass_sum = torch.sum(subtract_mass, dim=[-1, -2])   # S_t
+
+        if self.noisy_mode == 'ball':
+            p_conj = self.p_noise / (self.p_noise - 1)
+            h_vec = abs_mass.reshape(abs_mass.shape[0], -1)
+            robust_penalty = self.lambda_ * torch.norm(h_vec, p=p_conj, dim=-1)
+
+            subtract_mass_sum = subtract_mass_sum + robust_penalty
+
+        tw = (subtract_mass_sum.pow(self.p_agg).mean()).pow(1/self.p_agg)
+
+        return tw, sub_mass_target_cumsum, edge_length
+
+
+    def get_mass_and_coordinate(self, X, Y, theta, intercept):
+        # for the last dimension
+        # 0, 1, 2, ...., N -1 is of distribution 1
+        # N, N + 1, ...., 2N -1 is of distribution 2
+        N, dn = X.shape
+        mass_X, axis_coordinate_X = self.project(X, theta=theta, intercept=intercept)
+        mass_Y, axis_coordinate_Y = self.project(Y, theta=theta, intercept=intercept)
+
+        combined_axis_coordinate = torch.cat((axis_coordinate_X, axis_coordinate_Y), dim=2)
+        massXY = torch.cat((mass_X, -mass_Y), dim=2)
+
+        return combined_axis_coordinate, massXY
+
+    def project(self, input, theta, intercept):
+        N, d = input.shape
+        num_trees = theta.shape[0]
+        num_lines = theta.shape[1]
+        
+        # all lines has the same point which is root
+        input_translated = (input - intercept) #[T,B,D]
+        # projected cordinate
+        # 'tld,tdb->tlb'
+        axis_coordinate = torch.matmul(theta, input_translated.transpose(1, 2))
+        input_projected_translated = torch.einsum('tlb,tld->tlbd', axis_coordinate, theta)
+        
+        if self.mass_division == 'uniform':
+            mass_input = torch.ones((num_trees, num_lines, N), device=self.device) / (N * num_lines)
+        elif self.mass_division =='distance_based':
+            dist = (torch.norm(input_projected_translated - input_translated.unsqueeze(1), dim = -1))
+            weight = -self.delta*dist
+            mass_input = torch.softmax(weight, dim=-2)/N
+        
+        return mass_input, axis_coordinate
+
+
+class NTSW(NTWConcurrentLines):
+    def __init__(self, p=2, delta=2, device="cuda"):
+        super().__init__(p=p, delta=delta, device=device, mass_division='distance_based')
+
