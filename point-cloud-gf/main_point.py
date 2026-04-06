@@ -84,7 +84,7 @@ def build_twd_obj(device: torch.device) -> TWConcurrentLines:
     )
     return obj
 
-def build_gst_obj(device: torch.device, n_function: str = "exp", p_agg: int =2, p: int =2) -> OSb_TSConcurrentLines:
+def build_gst_obj(device: torch.device, n_function: str = "exp", p_agg: int =2, p: float =2.0) -> OSb_TSConcurrentLines:
     """Return a *plain* OSb_TSConcurrentLines object (no `torch.compile`).
 
     `torch.compile` spawns its own background compilation pool, which is forbidden
@@ -248,7 +248,7 @@ def parse_args() -> argparse.Namespace:
                    help="Aggregation exponent for n-TSW loss")
     p.add_argument("--n_function", type=str, default="exp",
                    help="Choice of n-function for GST: exp | identity")
-    p.add_argument("--p", type=int, default=2)
+    p.add_argument("--p", type=float, default=2.0)
     return p.parse_args()
 
 # --------------------------------------------------------------------------------------------------
