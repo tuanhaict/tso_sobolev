@@ -2,6 +2,21 @@ import numpy as np
 import torch
 import ot
 from von_mises_fisher import VonMisesFisher
+def h(y):
+    epsilon = 1e-6
+    # y -> [-1, 1]
+    y = y.mean(dim=-1, keepdim=True)
+    # [-1, 1] in (-1 - epsilon, 1 + epsilon) -> (0, pi)
+    shifted = (y + 1 + epsilon) * torch.pi / (2 + 2 * epsilon)
+    assert torch.all((0 < shifted) & (shifted < torch.pi)), "h(y) should be in (0, pi)"
+    return shifted
+def transform(X):
+    """
+    X: (N, d)
+    
+    Map x_i to (cos(h(x_i), sin(h(x_i)) * x_i))
+    """
+    return torch.cat([torch.cos(h(X)), torch.sin(h(X)) * X], dim=-1)
 def compute_true_Wasserstein(X,Y,p=2):
     M = ot.dist(X.cpu().detach().numpy(), Y.cpu().detach().numpy())
     a = np.ones((X.shape[0],)) / X.shape[0]
