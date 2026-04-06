@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 from n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, PowerNFunction
-from utils.func import transform
+from utils import transform
 
 class OSb_TSConcurrentLines():
     def __init__(self, ntrees=200, nlines=5, p=2, delta=2, device="cuda", type="normal", n_function="power", p_agg=2):
