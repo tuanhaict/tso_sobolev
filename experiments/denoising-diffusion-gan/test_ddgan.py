@@ -136,8 +136,8 @@ def sample_and_test(args):
     wandb.config.update(args)
     wandb.define_metric("test/epoch")
     wandb.define_metric("test/*", step_metric="test/epoch")
-    torch.manual_seed(42)
-    device = 'cuda:0'
+    torch.manual_seed(args.seed)
+    device = 'cuda'
     
     if args.dataset == 'cifar10':
         real_img_dir = 'pytorch_fid/cifar10_train_stat.npy'
@@ -148,14 +148,23 @@ def sample_and_test(args):
 
     
     netG = NCSNpp(args).to(device)
-    for epoch_id in range(0, args.max_epoch_id + 1, 25):
-        ckpt = torch.load('./saved_info/dd_gan/{}/{}/netG_{}.pth'.format(args.dataset, args.exp, epoch_id), map_location=device)
-        
-        #loading weights from ddp in single gpu
-        for key in list(ckpt.keys()):
-            ckpt[key[7:]] = ckpt.pop(key)
-        netG.load_state_dict(ckpt)
-        netG.eval()
+    for epoch_id in range(args.min_epoch_id, args.max_epoch_id + 1, args.epoch_step):
+        try:
+            # Attempt to load the model checkpoint
+            ckpt_path = './saved_info/dd_gan/{}/{}/netG_{}.pth'.format(args.dataset, args.exp, epoch_id)
+            ckpt = torch.load(ckpt_path, map_location=device)
+
+            # Load weights for single GPU from DDP checkpoint
+            for key in list(ckpt.keys()):
+                ckpt[key[7:]] = ckpt.pop(key)
+            netG.load_state_dict(ckpt)
+            netG.eval()
+        except FileNotFoundError:
+            print(f"Checkpoint not found for epoch {epoch_id}, skipping...")
+            continue
+        except Exception as e:
+            print(f"Error loading checkpoint for epoch {epoch_id}: {e}, skipping...")
+            continue
         
         
         T = get_time_schedule(args, device)
@@ -164,7 +173,7 @@ def sample_and_test(args):
             
         iters_needed = 50000 //args.batch_size
         
-        save_dir = "./generated_samples/{}/{}".format(args.dataset,args.exp)
+        save_dir = "./generated_samples/{}/{}/{}".format(args.dataset,args.exp,epoch_id)
         
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -172,8 +181,8 @@ def sample_and_test(args):
         if args.compute_fid:
             for i in range(iters_needed):
                 with torch.no_grad():
-                    x_t_1 = torch.randn(args.batch_size, args.num_channels,args.image_size, args.image_size).to(device)
-                    fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1,T,  args)
+                    x_t_1 = torch.randn(args.batch_size, args.num_channels,args.image_size, args.image_size, device=device)
+                    fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T, args)
                     
                     fake_sample = to_range_0_1(fake_sample)
                     for j, x in enumerate(fake_sample):
@@ -206,11 +215,13 @@ def sample_and_test(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ddgan parameters')
-    parser.add_argument('--seed', type=int, default=1024,
+    parser.add_argument('--seed', type=int, default=42,
                         help='seed used for initialization')
     parser.add_argument('--compute_fid', action='store_true', default=False,
                             help='whether or not compute FID')
+    parser.add_argument('--min_epoch_id', type=int,default=0)
     parser.add_argument('--max_epoch_id', type=int,default=1800)
+    parser.add_argument('--epoch_step', type=int,default=25)
     parser.add_argument('--num_channels', type=int, default=3,
                             help='channel of image')
     parser.add_argument('--centered', action='store_false', default=True,

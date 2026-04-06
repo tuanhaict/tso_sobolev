@@ -98,3 +98,8 @@ CUDA_VISIBLE_DEVICES=0 python test_ddgan.py --dataset cifar10 --exp ddgan_cifar1
 --wandb_project_name "ts-gsobolev" --wandb_entity "tuanhaict-"
 ```
 
+```bash
+CUDA_VISIBLE_DEVICES=0 python test_ddgan.py --dataset cifar10 --exp ddgan_cifar10_n_tsw_ball --num_channels 3 --num_channels_dae 128 --num_timesteps 4 \
+--num_res_blocks 2 --nz 100 --z_emb_dim 256 --n_mlp 4 --ch_mult 1 2 2 2 --max_epoch_id 1800 --min_epoch_id 1400 --compute_fid \
+--wandb_project_name "n-tsw" --wandb_entity "tuanhaict-"
+```
