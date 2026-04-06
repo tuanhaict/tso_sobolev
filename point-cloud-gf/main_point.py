@@ -84,7 +84,7 @@ def build_twd_obj(device: torch.device) -> TWConcurrentLines:
     )
     return obj
 
-def build_gst_obj(device: torch.device, n_function: str = "exp", p_agg: int =2) -> OSb_TSConcurrentLines:
+def build_gst_obj(device: torch.device, n_function: str = "exp", p_agg: int =2, p: int =2) -> OSb_TSConcurrentLines:
     """Return a *plain* OSb_TSConcurrentLines object (no `torch.compile`).
 
     `torch.compile` spawns its own background compilation pool, which is forbidden
@@ -96,7 +96,7 @@ def build_gst_obj(device: torch.device, n_function: str = "exp", p_agg: int =2) 
     obj = OSb_TSConcurrentLines(
         mass_division="distance_based",
         device=device,
-        p=2,
+        p=p,
         n_function=n_function,
         p_agg=p_agg,
         delta=10,
@@ -184,7 +184,7 @@ def run_one(args, loss_type: str, lr: float, gpu_id: int, data_path: str) -> Non
         Y = torch.tensor(arr[IND_TARGET], device=device)
         X = torch.tensor(arr[IND_SOURCE], requires_grad=True, device=device)
         N = Y.shape[0]
-        twd_obj = None if loss_type == "sw" else build_ntwd_obj(device, noisy_mode=args.noisy_mode, lambda_=args.lambda_, p_noise=args.p_noise) if loss_type.startswith("n_tsw") else build_gst_obj(device, n_function=args.n_function, p_agg=args.p_agg) if loss_type.startswith("gst") else build_twd_obj(device)
+        twd_obj = None if loss_type == "sw" else build_ntwd_obj(device, noisy_mode=args.noisy_mode, lambda_=args.lambda_, p_noise=args.p_noise) if loss_type.startswith("n_tsw") else build_gst_obj(device, n_function=args.n_function, p_agg=args.p_agg, p=args.p) if loss_type.startswith("gst") else build_twd_obj(device)
         opt = torch.optim.Adam([X], lr=lr)
 
         traj, dists, times = [], [], []
@@ -248,6 +248,7 @@ def parse_args() -> argparse.Namespace:
                    help="Aggregation exponent for n-TSW loss")
     p.add_argument("--n_function", type=str, default="exp",
                    help="Choice of n-function for GST: exp | identity")
+    p.add_argument("--p", type=int, default=2)
     return p.parse_args()
 
 # --------------------------------------------------------------------------------------------------
