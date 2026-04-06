@@ -94,8 +94,6 @@ def build_gst_obj(device: torch.device, n_function: str = "exp", p_agg: int =2) 
     these small point‑cloud models.
     """
     obj = OSb_TSConcurrentLines(
-        ntrees=NTREES,
-        nlines=NLINES,
         mass_division="distance_based",
         device=device,
         p=2,
