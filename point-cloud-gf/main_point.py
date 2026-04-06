@@ -154,6 +154,9 @@ def loss_fn(
     elif loss_type.startswith("n_tsw"):
         theta, intercept = generate_trees_frames(
             mean=mean_local, gen_mode=gen_mode, **common)        
+    elif loss_type.startswith("gst"):
+        theta, intercept = generate_trees_frames(
+            mean=mean_local, gen_mode=gen_mode, **common)
     else:
         theta, intercept = generate_trees_frames(
             mean=mean_local, gen_mode=gen_mode, **common)

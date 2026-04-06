@@ -87,7 +87,7 @@ torchrun --standalone --nproc_per_node=2 train_ddgan.py --dataset cifar10 --exp 
 ```
 
 ```bash
-PYTHONPATH=.. CUDA_VISIBLE_DEVICES=4,5 torchrun --standalone --nproc_per_node=2 train_ddgan.py --dataset cifar10 --exp ddgan_cifar10_n_tsw_ball --num_channels 3 --num_channels_dae 128 --num_timesteps 4 --num_res_blocks 2 --batch_size 256 --num_epoch 1800 --ngf 64 --nz 100 --z_emb_dim 256 --n_mlp 4 --embedding_type positional --use_ema --ema_decay 0.9999 --r1_gamma 0.02 --lr_d 1.25e-4 --lr_g 1.6e-4 --lazy_reg 15 --loss n_tsw --T 2500 --L 4 --twd_delta 10 --twd_std 0.1 --twd_gen_mode gaussian_raw --ch_mult 1 2 2 2 --noisy_mode "ball" --lambda_ 0.00001 --save_content --wandb_project_name "n-tsw" --wandb_entity "tuanhaict-" --save_ckpt_every 25
+nohup env PYTHONPATH=../.. CUDA_VISIBLE_DEVICES=4,5 torchrun --standalone --nproc_per_node=2 train_ddgan.py --dataset cifar10 --exp ddgan_cifar10_n_tsw_ball --num_channels 3 --num_channels_dae 128 --num_timesteps 4 --num_res_blocks 2 --batch_size 256 --num_epoch 1800 --ngf 64 --nz 100 --z_emb_dim 256 --n_mlp 4 --embedding_type positional --use_ema --ema_decay 0.9999 --r1_gamma 0.02 --lr_d 1.25e-4 --lr_g 1.6e-4 --lazy_reg 15 --loss n_tsw --T 2500 --L 4 --twd_delta 10 --twd_std 0.1 --twd_gen_mode gaussian_raw --ch_mult 1 2 2 2 --noisy_mode "ball" --lambda_ 0.00001 --p_agg 1 --save_content --wandb_project_name "n-tsw" --wandb_entity "tuanhaict-" --save_ckpt_every 25 > n_tsw.log 2>&1 &
 ```
 #### CIFAR-10 Testing ####
 For testing the trained model, use the name of the experiment in the `--exp` argument. For example:
