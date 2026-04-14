@@ -195,7 +195,6 @@ class OrliczNorm(torch.autograd.Function):
         lam = hi
         ctx.save_for_backward(d, lam)
         ctx.n_function = n_function
-        print(f"Orlicz norm: {lam.item()}, G_hi: {n_function(d_pos / lam).mean().item()}, expand_iter: {_}")
         return lam
     
     @staticmethod
