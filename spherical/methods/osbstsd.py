@@ -159,7 +159,9 @@ class OSbSTSD():
             )
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
-
+        dist = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+        print(f"Taylor dist: {dist.item()}")
+        return dist
         # return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
         return self.orlicz_norm(dist_per_tree)
     def compute_closed_form(self, h_edges, w_edges):
