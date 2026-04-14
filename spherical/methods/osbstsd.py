@@ -63,6 +63,54 @@ class OSbSTSD():
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         return self.compute_via_taylor(h_edges, w_edges)
+    def orlicz_norm(self, d, max_iter=25, tol=1e-6):
+        """
+        Compute the Luxemburg Orlicz norm of a nonnegative vector d:
+            ||d||_{L^Phi} = inf {lambda > 0 : mean Phi(d / lambda) <= 1}
+
+        Uses binary search directly.
+        Assumes:
+        - self.n_function(x) computes Phi(x)
+        - Phi is an N-function / Young function
+        """
+        eps = 1e-12
+        d = torch.clamp(d, min=0.0)
+
+        # Zero vector
+        if torch.all(d <= eps):
+            return torch.zeros((), device=d.device, dtype=d.dtype)
+
+        def G(lmbda):
+            return self.n_function(d / lmbda).mean()
+
+        # Find bracket [lo, hi] such that
+        # G(lo) >= 1 and G(hi) <= 1
+        lo = torch.tensor(eps, device=d.device, dtype=d.dtype)
+        hi = torch.clamp(d.max(), min=torch.tensor(1.0, device=d.device, dtype=d.dtype))
+
+        # Expand hi until it is large enough
+        g_hi = G(hi)
+        expand_iter = 0
+        while g_hi > 1.0 and expand_iter < 60:
+            hi = hi * 2.0
+            g_hi = G(hi)
+            expand_iter += 1
+
+        # Binary search
+        for _ in range(max_iter):
+            mid = 0.5 * (lo + hi)
+            g_mid = G(mid)
+
+            if g_mid > 1.0:
+                lo = mid
+            else:
+                hi = mid
+
+            # relative stopping
+            if (hi - lo) / torch.clamp(hi, min=eps) < tol:
+                break
+
+        return hi
     def compute_via_taylor(self, h_edges, w_edges):
         # (T, L*E)
         h = h_edges.reshape(h_edges.shape[0], -1)
@@ -112,7 +160,8 @@ class OSbSTSD():
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
 
-        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+        # return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+        return self.orlicz_norm(dist_per_tree)
     def compute_closed_form(self, h_edges, w_edges):
         """
         Compute using closed form for Phi(t) = ((p-1)^(p-1)/p^p) * t^p.
