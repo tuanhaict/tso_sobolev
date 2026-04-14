@@ -273,7 +273,6 @@ class OSb_TSConcurrentLines:
             # relative stopping
             if (hi - lo) / torch.clamp(hi, min=eps) < tol:
                 break
-
         return hi
 
     def compute_via_taylor(self, h_edges, w_edges):

@@ -109,7 +109,7 @@ class OSbSTSD():
             # relative stopping
             if (hi - lo) / torch.clamp(hi, min=eps) < tol:
                 break
-
+        print(f"Orlicz norm: {hi.item()}, G(hi): {G(hi).item()}, expand_iter: {expand_iter}")
         return hi
     def compute_via_taylor(self, h_edges, w_edges):
         # (T, L*E)
