@@ -19,8 +19,8 @@ nofiterations = args.num_iter
 seeds = range(1,args.num_seeds+1)
 modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
 # titles = ['OSbTSW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'MaxSW', 'SW']
-titles = ['OSbTSW', 'TSW-SL-distance-based', 'NTSW', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'SW']
-# titles = ['OSbTSW', 'TSW-SL-distance-based']
+# titles = ['OSbTSW', 'TSW-SL-distance-based', 'NTSW', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'SW']
+titles = ['OSbTSW', 'TSW-SL-distance-based', 'NTSW', 'TSW-SL-uniform', 'SbTS']
 colors = ['blue', 'orange', 'red', 'green', 'purple', 'brown', 'pink', 'cyan', 'magenta']
 
 # Arrays to store results
