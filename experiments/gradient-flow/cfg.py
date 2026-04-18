@@ -89,6 +89,24 @@ def parse_args():
         default=2,
         help="p value for aggregating tree distances in OSbTS and TWD"
     )
+    parser.add_argument(
+        "--p_noise",
+        type=float,
+        default=2,
+        help="p value for noise in NTWD"
+    )
+    parser.add_argument(
+        "--lambda_",
+        type=float,
+        default=0.0,
+        help="lambda for noise in NTWD"
+    )
+    parser.add_argument(
+        '--noisy_mode',
+        type=str,
+        default=None,
+        help='noisy mode for NTWD, could be None'
+    )
 
     opt = parser.parse_args()
     return opt
