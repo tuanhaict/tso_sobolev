@@ -272,8 +272,8 @@ class OSb_TSConcurrentLines:
         # Mean over trees
         dist_per_tree = torch.stack(distances_per_tree)
 
-        # return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
-        return self.orlicz_norm(dist_per_tree)
+        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+        # return self.orlicz_norm(dist_per_tree)
 
 
     def compute_via_taylor(self, h_edges, w_edges):

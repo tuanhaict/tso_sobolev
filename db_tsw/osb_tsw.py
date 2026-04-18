@@ -225,7 +225,7 @@ class OSb_TSConcurrentLines:
         # Mean over trees
         dist_per_tree = torch.stack(distances_per_tree)
 
-        # return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
         return self.orlicz_norm(dist_per_tree)
     def orlicz_norm(self, d, max_iter=25, tol=1e-6):
         """
