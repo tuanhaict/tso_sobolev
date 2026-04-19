@@ -216,7 +216,7 @@ for k, title in enumerate(titles):
     with open(f"logs/{title}_resutls.txt", "a") as f:
         a = ""
         a += f"{folder_info}_seed{seed}\n"
-        stp = [499, 999, 1499, 1999, 2499]
+        stp = [499, 999, 1499, 1999, 2499, 2999]
         for step in stp:
             data = results[title]['raw_w2'][step]
             a += f"{data.mean():.2e} & "# $\pm$ {data.std()}")t\t{np.log10(data).mean()} $\pm$ {np.log10(data).std()}\n")
