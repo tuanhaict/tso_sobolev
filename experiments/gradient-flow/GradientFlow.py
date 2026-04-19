@@ -19,8 +19,8 @@ nofiterations = args.num_iter
 seeds = range(1,args.num_seeds+1)
 modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
 # titles = ['OSbTSW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'MaxSW', 'SW']
-# titles = ['OSbTSW', 'TSW-SL-distance-based', 'NTSW', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'SW']
-titles = ['OSbTSW', 'TSW-SL-distance-based']
+titles = ['OSbTSW', 'TSW-SL-distance-based', 'NTSW', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'SW']
+# titles = ['OSbTSW', 'TSW-SL-distance-based']
 colors = ['blue', 'orange', 'red', 'green', 'purple', 'brown', 'pink', 'cyan', 'magenta']
 
 # Arrays to store results
@@ -216,7 +216,7 @@ for k, title in enumerate(titles):
     with open(f"logs/{title}_resutls.txt", "a") as f:
         a = ""
         a += f"{folder_info}_seed{seed}\n"
-        stp = [499, 999, 1499, 1999, 2499, 2999]
+        stp = [499, 999, 1499, 1999, 2499]
         for step in stp:
             data = results[title]['raw_w2'][step]
             a += f"{data.mean():.2e} & "# $\pm$ {data.std()}")t\t{np.log10(data).mean()} $\pm$ {np.log10(data).std()}\n")
