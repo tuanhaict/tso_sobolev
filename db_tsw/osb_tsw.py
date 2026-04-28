@@ -212,7 +212,7 @@ class OSb_TSConcurrentLines:
                 # init k using inverse mean scale
                 k = 1.0 / (h_flat.mean() + 1e-8)
 
-                for _ in range(30): 
+                for _ in range(10): 
                     kh = k * h_flat
 
                     Phi = self.n_function(kh)
