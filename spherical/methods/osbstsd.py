@@ -5,7 +5,7 @@ from methods.n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, E
 from utils.func import transform
 
 class OSbSTSD():
-    def __init__(self, ntrees=200, nlines=5, p=2, delta=2, device="cuda", type="normal", n_function="power", p_agg=2):
+    def __init__(self, ntrees=200, nlines=5, p=2, delta=2, device="cuda", type="normal", n_function="power", p_agg=2, optimization_method="bounded"):
         """
         Class for computing the TW distance between two point clouds
         Args:
@@ -24,6 +24,7 @@ class OSbSTSD():
         self.device = device
         self.eps = 1e-6
         self.p_agg = p_agg
+        self.optimization_method = optimization_method
         if type not in ["normal", "generalized"]:
             raise ValueError("type should be either normal or generalized")
         self.type = type
@@ -62,7 +63,22 @@ class OSbSTSD():
         h_edges, w_edges = self.compute_edge_mass_and_weights(mass_X, mass_Y, combined_axis_coordinate)
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
-        return self.compute_via_taylor(h_edges, w_edges)
+        else:
+            taylor_dist = self.compute_via_taylor(h_edges, w_edges)
+
+            if self.optimization_method == "newton":
+                op_dist = self.compute_via_optimization(h_edges, w_edges)
+
+                eps = 1e-12
+                rel_err = torch.abs(taylor_dist - op_dist) / (torch.abs(op_dist) + eps)
+
+                print(
+                    f"Taylor: {taylor_dist.item():.6e}, "
+                    f"Optimization: {op_dist.item():.6e}, "
+                    f"RelErr: {rel_err.item():.6e}"
+                )
+
+            return taylor_dist
     def orlicz_norm(self, d, max_iter=25, tol=1e-6):
         return OrliczNorm.apply(d, self.n_function, max_iter, tol)
     def compute_via_taylor(self, h_edges, w_edges):
@@ -113,11 +129,7 @@ class OSbSTSD():
             )
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
-        # dist = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
-        # print(f"Taylor dist: {dist.item()}")
-        # return dist
         return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
-        return self.orlicz_norm(dist_per_tree)
     def compute_closed_form(self, h_edges, w_edges):
         """
         Compute using closed form for Phi(t) = ((p-1)^(p-1)/p^p) * t^p.

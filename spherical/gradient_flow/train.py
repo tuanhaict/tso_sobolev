@@ -32,7 +32,9 @@ def run_exp(dataiter, d_func, d_args, mus, batch_size=200, n_steps=500, lr=1e-2,
     for i in pbar:
         optimizer.zero_grad()
         Xt = next(dataiter).to(device)
-        sw = d_func(Xt, X0, **d_args)
+        cur_d_args = dict(d_args)
+        cur_d_args["optimization_method"] = "newton" if (i + 1) % 50 == 0 else "bounded"
+        sw = d_func(Xt, X0, **cur_d_args)
         sw.backward()
         optimizer.step()
         X0.data /= torch.norm(X0.data, dim=1, keepdim=True)
