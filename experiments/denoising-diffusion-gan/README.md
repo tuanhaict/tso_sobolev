@@ -185,9 +185,9 @@ run_one_experiment() {
     --num_res_blocks 2 --batch_size 256 --num_epoch 1800 \
     --ngf 64 --nz 100 --z_emb_dim 256 --n_mlp 4 \
     --embedding_type positional --use_ema --ema_decay 0.9999 \
-    --r1_gamma 0.02 --lr_d 1.25e-4 --lr_g 1.6e-4 \
+    --r1_gamma 0.02 --lr_d 1.25e-4 --lr_g 1.6e-4 --n_function "$N_FUNCTION" \
     --lazy_reg 15 --loss ts_gsobolev --T 2500 --L 4 \
-    --twd_delta 10 --twd_std 0.1 --twd_gen_mode "$GEN_MODE" \
+    --twd_delta 10 --twd_std 0.1 --twd_gen_mode "$GEN_MODE" --ts_sobolev_p 2 \
     --ch_mult 1 2 2 2 --p_agg 2 --save_content \
     --wandb_project_name "ts-gsobolev" --wandb_entity "tuanhaict-" \
     --save_ckpt_every 25 > "$TRAIN_LOG" 2>&1

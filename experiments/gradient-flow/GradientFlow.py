@@ -80,10 +80,10 @@ for k, title in enumerate(titles):
 
         mean_X = torch.mean(X, dim=0, keepdim=True).to(device)
         std_X = torch.std(X, dim=0, keepdim=True).to(device)
-
+        check_steps = {499, 999, 1499, 1999, 2499}
         for t in tqdm(range(nofiterations)):
             theta = torch.ones(len(modes), d)
-
+            
             loss = 0
 
             if k == 2:
@@ -97,7 +97,8 @@ for k, title in enumerate(titles):
                     gen_mode='gaussian_raw',
                     device='cuda'
                 )  # orthogonal
-                loss += gradient_flow.OSbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta, n_function=args.n_function, p_agg=args.p_agg)
+                optimization_method = "newton" if t in check_steps else "bounded"
+                loss += gradient_flow.OSbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta, n_function=args.n_function, p_agg=args.p_agg, optimization_method=optimization_method)
                 end_time = time.time()
                   # End timing
                 # print(f"Time taken for SW: {end_time - start_time:.4f} seconds")

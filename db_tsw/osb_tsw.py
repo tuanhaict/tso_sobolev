@@ -115,6 +115,19 @@ class OSb_TSConcurrentLines:
             return self.compute_closed_form(h_edges, w_edges)
         else:
             taylor_dist = self.compute_via_taylor(h_edges, w_edges)
+
+            if self.optimization_method == "newton":
+                op_dist = self.compute_via_optimization(h_edges, w_edges)
+
+                eps = 1e-12
+                rel_err = torch.abs(taylor_dist - op_dist) / (torch.abs(op_dist) + eps)
+
+                print(
+                    f"Taylor: {taylor_dist.item():.6e}, "
+                    f"Optimization: {op_dist.item():.6e}, "
+                    f"RelErr: {rel_err.item():.6e}"
+                )
+
             return taylor_dist
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
@@ -226,7 +239,6 @@ class OSb_TSConcurrentLines:
         dist_per_tree = torch.stack(distances_per_tree)
 
         return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
-        return self.orlicz_norm(dist_per_tree)
     def orlicz_norm(self, d, max_iter=25, tol=1e-6):
         """
         Compute the Luxemburg Orlicz norm of a nonnegative vector d:
