@@ -90,7 +90,7 @@ if __name__ == "__main__":
         d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device}
     elif args.d_func == "osbsts":
         d_func = osbstsd.osbsts
-        d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device, 'n_function': args.n_function, 'p_agg': args.p_agg}
+        d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device, 'n_function': args.n_function, 'p_agg': args.p_agg, 'optimization_method': 'bounded'}
     elif args.d_func == "ari_s3w":
         d_func = s3wd.ari_s3wd
         d_args = {'p': 2, 'n_projs': 1000, 'device': device, 'h': None, 'n_rotations': 30, 'pool_size': 1000}
