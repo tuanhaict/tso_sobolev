@@ -192,8 +192,14 @@ class OSb_TSConcurrentLines:
         h_edges: (T, L, E)  |h(e)|, requires_grad=True
         w_edges: (T, L, E)  w_e, no grad
         """
-        num_trees = h_edges.shape[0]
+        orig_dtype = h_edges.dtype
         device = h_edges.device
+
+        # Only change: use double precision inside this function
+        h_edges = h_edges.double()
+        w_edges = w_edges.double()
+
+        num_trees = h_edges.shape[0]
 
         distances_per_tree = []
 
@@ -212,7 +218,7 @@ class OSb_TSConcurrentLines:
                 # init k using inverse mean scale
                 k = 1.0 / (h_flat.mean() + 1e-8)
 
-                for _ in range(5): 
+                for _ in range(100): 
                     kh = k * h_flat
 
                     Phi = self.n_function(kh)
@@ -231,14 +237,19 @@ class OSb_TSConcurrentLines:
                     )
 
                     k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
+
             k = k.detach()
             kh = k * h_flat
             loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
+
         # Mean over trees
         dist_per_tree = torch.stack(distances_per_tree)
 
-        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+        out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+
+        # Cast back to original dtype
+        return out.to(dtype=orig_dtype, device=device)
     def orlicz_norm(self, d, max_iter=25, tol=1e-6):
         """
         Compute the Luxemburg Orlicz norm of a nonnegative vector d:
