@@ -215,10 +215,18 @@ class OSb_TSConcurrentLines:
             # Solve k*
             # -----------------------------
             with torch.no_grad():
-                # init k using inverse mean scale
                 k = 1.0 / (h_flat.mean() + 1e-8)
 
-                for _ in range(100): 
+                h_max = h_flat.max()
+                k_upper = 25.0 / (h_max + 1e-12)
+                k = torch.clamp(k, min=1e-8, max=k_upper)
+
+                def objective(k_val):
+                    kh = k_val * h_flat
+                    val = (1.0 + torch.sum(w_flat * self.n_function(kh))) / k_val
+                    return val
+
+                for _ in range(100):
                     kh = k * h_flat
 
                     Phi = self.n_function(kh)
@@ -236,7 +244,34 @@ class OSb_TSConcurrentLines:
                         + sum_Phi_pp / k
                     )
 
-                    k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
+                    if not (torch.isfinite(Fp) and torch.isfinite(Fpp)):
+                        break
+
+                    current_obj = objective(k)
+
+                    step = Fp / (Fpp + 1e-12)
+
+                    accepted = False
+                    step_scale = 1.0
+
+                    for _ in range(30):
+                        k_new = torch.clamp(k - step_scale * step, min=1e-8, max=k_upper)
+                        new_obj = objective(k_new)
+
+                        if torch.isfinite(k_new) and torch.isfinite(new_obj) and new_obj <= current_obj:
+                            if torch.abs(k_new - k) / (torch.abs(k) + 1e-12) < 1e-8:
+                                k = k_new
+                                accepted = True
+                                break
+
+                            k = k_new
+                            accepted = True
+                            break
+
+                        step_scale *= 0.5
+
+                    if not accepted:
+                        break
 
             k = k.detach()
             kh = k * h_flat
