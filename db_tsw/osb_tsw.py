@@ -288,6 +288,8 @@ class OSb_TSConcurrentLines:
                     kstar_list.append(k.detach())
 
         dist_per_tree = torch.stack(distances_per_tree)
+        if self.optimization_method == "newton":
+            print(f"Distances per tree (Optimization): {dist_per_tree}")
         out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
         # Print diagnostics aggregated over trees
@@ -411,6 +413,8 @@ class OSb_TSConcurrentLines:
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
 
+        if self.optimization_method == "newton":
+            print(f"Dist per tree (Taylor): {dist_per_tree}")
         return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
 
