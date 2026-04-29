@@ -18,7 +18,7 @@ sys.path.append('../')
 import utils.vmf as vmf_utils
 import utils.plot as plot_utils
 from utils.func import set_seed
-from methods import s3wd, sswd, stswd, sbstsd, osbstsd
+from methods import s3wd, sswd, stswd, sbstsd, osbstsd, lssotd
 
 def plot_result(X, out_path):
     k = gaussian_kde(X.T)
@@ -106,6 +106,13 @@ if __name__ == "__main__":
     elif args.d_func == "ssw":
         d_func = sswd.sswd
         d_args = {'p': 2, 'num_projections': 1000, 'device': device}
+    elif args.d_func == "lssot":
+        d_func = lssotd.lssotd
+        # ref_size=None means use batch size dynamically
+        # num_projections matches other baselines (s3w, ssw use 1000)
+        num_projections = getattr(args, 'num_projections', 1000)
+        ref_size = getattr(args, 'ref_size', None)
+        d_args = {'num_projections': num_projections, 'ref_size': ref_size, 'device': device, 'seed': args.seed}
     else:
         raise Exception(f"Loss function {args.d_func} is not supported")
     
