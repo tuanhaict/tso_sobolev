@@ -350,6 +350,11 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            ratio = h.abs().max(dim=1).values / torch.sqrt(A2 + eps)
+            print(
+                f"Non-concentration ratio max|Delta|/sqrt(M2): "
+                f"mean={ratio.mean().item():.6e}, max={ratio.max().item():.6e}"
+            )
             dist_per_tree = (
                 torch.sqrt(2.0 * A2)
                 + A3 / (3.0 * (A2))
@@ -358,6 +363,11 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
+            ratio = h.abs().max(dim=1).values / torch.sqrt(A2 + eps)
+            print(
+                f"Non-concentration ratio max|Delta|/sqrt(M2): "
+                f"mean={ratio.mean().item():.6e}, max={ratio.max().item():.6e}"
+            )
             dist_per_tree = (
                 2.0 * torch.sqrt(A2)
                 + A4 / (2.0 * (A2).pow(1.5))
