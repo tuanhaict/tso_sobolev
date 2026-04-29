@@ -375,21 +375,6 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-            A4 = torch.sum(w * h**4, dim=1)
-            A6 = torch.sum(w * torch.abs(h)**6, dim=1)
-
-            ratio_max = h.abs().max(dim=1).values / torch.sqrt(A2 + eps)
-
-            rho3 = A3 / (A2 + eps).pow(1.5)
-            rho4 = A4 / (A2 + eps).pow(2.0)
-            rho6 = A6 / (A2 + eps).pow(3.0)
-
-            print(
-                f"max/sqrt(M2): mean={ratio_max.mean().item():.3e}, max={ratio_max.max().item():.3e} | "
-                f"M3/M2^(3/2): mean={rho3.mean().item():.3e}, max={rho3.max().item():.3e} | "
-                f"M4/M2^2: mean={rho4.mean().item():.3e}, max={rho4.max().item():.3e} | "
-                f"M6/M2^3: mean={rho6.mean().item():.3e}, max={rho6.max().item():.3e}"
-            )
             dist_per_tree = (
                 torch.sqrt(2.0 * A2)
                 + A3 / (3.0 * (A2))
@@ -398,18 +383,7 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
-            A6 = torch.sum(w * torch.abs(h)**6, dim=1)
 
-            ratio_max = h.abs().max(dim=1).values / torch.sqrt(A2 + eps)
-
-            rho4 = A4 / (A2 + eps).pow(2.0)
-            rho6 = A6 / (A2 + eps).pow(3.0)
-
-            print(
-                f"max/sqrt(M2): mean={ratio_max.mean().item():.3e}, max={ratio_max.max().item():.3e} | "
-                f"M4/M2^2: mean={rho4.mean().item():.3e}, max={rho4.max().item():.3e} | "
-                f"M6/M2^3: mean={rho6.mean().item():.3e}, max={rho6.max().item():.3e}"
-            )
             dist_per_tree = (
                 2.0 * torch.sqrt(A2)
                 + A4 / (2.0 * (A2).pow(1.5))
