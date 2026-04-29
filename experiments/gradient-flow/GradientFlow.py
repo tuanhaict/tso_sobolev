@@ -20,7 +20,7 @@ seeds = range(1,args.num_seeds+1)
 modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
 # titles = ['OSbTSW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'MaxSW', 'SW']
 # titles = ['OSbTSW', 'NTSW','TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'SW']
-titles = ['OSbTSW']
+titles = ['Max-SW']
 colors = ['blue', 'orange', 'red', 'green', 'purple', 'brown', 'pink', 'cyan', 'magenta']
 
 # Arrays to store results
@@ -86,7 +86,7 @@ for k, title in enumerate(titles):
             
             loss = 0
 
-            if k == 0:
+            if k == 6:
                 start_time = time.time()  # Start timing
                 theta_twd, intercept_twd = generate_trees_frames(
                     ntrees=int(args.L / args.n_lines),
@@ -179,12 +179,12 @@ for k, title in enumerate(titles):
                 loss += gsw_res.sw(X.to(device), Y, theta=None)
                 end_time = time.time()
                 # print(f"Time taken for TWD orthogonal: {end_time - start_time:.4f} seconds")
-            # elif k == 6:
-            #     start_time = time.time()  # Start timing
-            #     l, theta, loss_max = gsw_res.max_sw(X.to(device), Y, iterations=100, lr=lear_rates[k])
-            #     loss += l
-            #     end_time = time.time()  # End timing
-                # print(f"Time taken for max SW: {end_time - start_time:.4f} seconds")
+            elif k == 0:
+                start_time = time.time()  # Start timing
+                l, theta, loss_max = gsw_res.max_sw(X.to(device), Y, iterations=100, lr=lear_rates[k])
+                loss += l
+                end_time = time.time()  # End timing
+                print(f"Time taken for max SW: {end_time - start_time:.4f} seconds")
             # elif k == 7:
             #     start_time = time.time()  # Start timing
             #     loss += gsw_res.sw(X.to(device), Y, theta=None)
