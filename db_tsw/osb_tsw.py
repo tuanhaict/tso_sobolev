@@ -377,7 +377,6 @@ class OSb_TSConcurrentLines:
 
             ratio_max = h.abs().max(dim=1).values / torch.sqrt(A2 + eps)
 
-            rho3 = A3 / (A2 + eps).pow(1.5)
             rho4 = A4 / (A2 + eps).pow(2.0)
             rho6 = A6 / (A2 + eps).pow(3.0)
 
