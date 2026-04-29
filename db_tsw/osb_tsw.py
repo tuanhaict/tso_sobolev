@@ -351,6 +351,7 @@ class OSb_TSConcurrentLines:
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
             ratio = h.abs().max(dim=1).values / torch.sqrt(A2 + eps)
+            print(f"A2: mean={A2.mean().item():.6e}, max={A2.max().item():.6e}")
             print(
                 f"Non-concentration ratio max|Delta|/sqrt(M2): "
                 f"mean={ratio.mean().item():.6e}, max={ratio.max().item():.6e}"
@@ -364,6 +365,7 @@ class OSb_TSConcurrentLines:
             A2 = torch.sum(w * h**2, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
             ratio = h.abs().max(dim=1).values / torch.sqrt(A2 + eps)
+            print(f"A2: mean={A2.mean().item():.6e}, max={A2.max().item():.6e}")
             print(
                 f"Non-concentration ratio max|Delta|/sqrt(M2): "
                 f"mean={ratio.mean().item():.6e}, max={ratio.max().item():.6e}"
