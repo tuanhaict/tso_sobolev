@@ -36,6 +36,7 @@ class OSb_TSConcurrentLines:
         self.mass_division = mass_division
         self.optimization_method = optimization_method
         self.p_agg = p_agg
+        self.print_tail_at_kstar = True  # Set to True to print tail diagnostics at k*
         assert self.mass_division in ['uniform', 'distance_based'], \
             "Invalid mass division. Must be one of 'uniform', 'distance_based'"
         
@@ -195,19 +196,22 @@ class OSb_TSConcurrentLines:
         orig_dtype = h_edges.dtype
         device = h_edges.device
 
-        # Only change: use double precision inside this function
         h_edges = h_edges.double()
         w_edges = w_edges.double()
 
         num_trees = h_edges.shape[0]
-
         distances_per_tree = []
+
+        # Diagnostics at k*
+        tail_rel_exact_list = []
+        tail_rel_retained_list = []
+        max_z_list = []
+        kstar_list = []
 
         for t in range(num_trees):
             h = h_edges[t]        # (L, E)
             w = w_edges[t]        # (L, E)
 
-            # Collapse lines + edges into one dimension (sum_e)
             h_flat = h.reshape(-1)
             w_flat = w.reshape(-1)
 
@@ -216,15 +220,6 @@ class OSb_TSConcurrentLines:
             # -----------------------------
             with torch.no_grad():
                 k = 1.0 / (h_flat.mean() + 1e-8)
-
-                h_max = h_flat.max()
-                k_upper = 25.0 / (h_max + 1e-12)
-                k = torch.clamp(k, min=1e-8, max=k_upper)
-
-                def objective(k_val):
-                    kh = k_val * h_flat
-                    val = (1.0 + torch.sum(w_flat * self.n_function(kh))) / k_val
-                    return val
 
                 for _ in range(100):
                     kh = k * h_flat
@@ -244,46 +239,76 @@ class OSb_TSConcurrentLines:
                         + sum_Phi_pp / k
                     )
 
-                    if not (torch.isfinite(Fp) and torch.isfinite(Fpp)):
-                        break
-
-                    current_obj = objective(k)
-
-                    step = Fp / (Fpp + 1e-12)
-
-                    accepted = False
-                    step_scale = 1.0
-
-                    for _ in range(30):
-                        k_new = torch.clamp(k - step_scale * step, min=1e-8, max=k_upper)
-                        new_obj = objective(k_new)
-
-                        if torch.isfinite(k_new) and torch.isfinite(new_obj) and new_obj <= current_obj:
-                            if torch.abs(k_new - k) / (torch.abs(k) + 1e-12) < 1e-8:
-                                k = k_new
-                                accepted = True
-                                break
-
-                            k = k_new
-                            accepted = True
-                            break
-
-                        step_scale *= 0.5
-
-                    if not accepted:
-                        break
+                    k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
 
             k = k.detach()
-            kh = k * h_flat
-            loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
+
+            # Exact objective at k*
+            z = k * h_flat.abs()
+            exact_phi = self.n_function(z)
+            loss_t = (1.0 + torch.sum(w_flat * exact_phi)) / k
             distances_per_tree.append(loss_t)
 
-        # Mean over trees
-        dist_per_tree = torch.stack(distances_per_tree)
+            # -----------------------------
+            # Taylor tail at k*
+            # -----------------------------
+            if getattr(self, "print_tail_at_kstar", False):
+                retained_phi = None
 
+                if isinstance(self.n_function, ExpNFunction):
+                    # Phi(t)=exp(t)-t-1
+                    # retained: t^2/2 + t^3/6
+                    retained_phi = 0.5 * z**2 + (1.0 / 6.0) * z**3
+
+                elif isinstance(self.n_function, ExpSquaredNFunction):
+                    # Phi(t)=exp(t^2)-1
+                    # retained: t^2 + t^4/2
+                    retained_phi = z**2 + 0.5 * z**4
+
+                elif isinstance(self.n_function, ExpQuadraticQuarterNFunction):
+                    # If Phi(t)=exp(t^2/4)-1
+                    # retained: t^2/4 + t^4/32
+                    retained_phi = 0.25 * z**2 + (1.0 / 32.0) * z**4
+
+                elif isinstance(self.n_function, ExpHalfLinearCorrectedNFunction):
+                    # If Phi(t)=0.5*(exp(t)-t-1)
+                    # retained: t^2/4 + t^3/12
+                    retained_phi = 0.25 * z**2 + (1.0 / 12.0) * z**3
+
+                if retained_phi is not None:
+                    tail_value = torch.sum(w_flat * (exact_phi - retained_phi)) / k
+                    retained_obj = (1.0 + torch.sum(w_flat * retained_phi)) / k
+
+                    tail_rel_exact = tail_value.abs() / (loss_t.abs() + 1e-12)
+                    tail_rel_retained = tail_value.abs() / (retained_obj.abs() + 1e-12)
+
+                    tail_rel_exact_list.append(tail_rel_exact.detach())
+                    tail_rel_retained_list.append(tail_rel_retained.detach())
+                    max_z_list.append(z.max().detach())
+                    kstar_list.append(k.detach())
+
+        dist_per_tree = torch.stack(distances_per_tree)
         out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
-        # Cast back to original dtype
+        # Print diagnostics aggregated over trees
+        if getattr(self, "print_tail_at_kstar", False) and len(tail_rel_exact_list) > 0:
+            tail_rel_exact_all = torch.stack(tail_rel_exact_list)
+            tail_rel_retained_all = torch.stack(tail_rel_retained_list)
+            max_z_all = torch.stack(max_z_list)
+            kstar_all = torch.stack(kstar_list)
+
+            print(
+                "[Tail@k*] "
+                f"tail/exact: mean={tail_rel_exact_all.mean().item():.6e}, "
+                f"max={tail_rel_exact_all.max().item():.6e} | "
+                f"tail/retained: mean={tail_rel_retained_all.mean().item():.6e}, "
+                f"max={tail_rel_retained_all.max().item():.6e} | "
+                f"max(k*h): mean={max_z_all.mean().item():.6e}, "
+                f"max={max_z_all.max().item():.6e} | "
+                f"k*: mean={kstar_all.mean().item():.6e}, "
+                f"max={kstar_all.max().item():.6e}"
+            )
+
         return out.to(dtype=orig_dtype, device=device)
     def orlicz_norm(self, d, max_iter=25, tol=1e-6):
         """
