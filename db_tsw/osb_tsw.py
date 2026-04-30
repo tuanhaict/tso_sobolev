@@ -242,74 +242,13 @@ class OSb_TSConcurrentLines:
                     k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
 
             k = k.detach()
-
-            # Exact objective at k*
-            z = k * h_flat.abs()
-            exact_phi = self.n_function(z)
-            loss_t = (1.0 + torch.sum(w_flat * exact_phi)) / k
+            kh = k * h_flat
+            print(f"Kh: {kh}")
+            loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
 
-            # -----------------------------
-            # Taylor tail at k*
-            # -----------------------------
-            if getattr(self, "print_tail_at_kstar", False):
-                retained_phi = None
-
-                if isinstance(self.n_function, ExpNFunction):
-                    # Phi(t)=exp(t)-t-1
-                    # retained: t^2/2 + t^3/6
-                    retained_phi = 0.5 * z**2 + (1.0 / 6.0) * z**3
-
-                elif isinstance(self.n_function, ExpSquaredNFunction):
-                    # Phi(t)=exp(t^2)-1
-                    # retained: t^2 + t^4/2
-                    retained_phi = z**2 + 0.5 * z**4
-
-                elif isinstance(self.n_function, ExpQuadraticQuarterNFunction):
-                    # If Phi(t)=exp(t^2/4)-1
-                    # retained: t^2/4 + t^4/32
-                    retained_phi = 0.25 * z**2 + (1.0 / 32.0) * z**4
-
-                elif isinstance(self.n_function, ExpHalfLinearCorrectedNFunction):
-                    # If Phi(t)=0.5*(exp(t)-t-1)
-                    # retained: t^2/4 + t^3/12
-                    retained_phi = 0.25 * z**2 + (1.0 / 12.0) * z**3
-
-                if retained_phi is not None:
-                    tail_value = torch.sum(w_flat * (exact_phi - retained_phi)) / k
-                    retained_obj = (1.0 + torch.sum(w_flat * retained_phi)) / k
-
-                    tail_rel_exact = tail_value.abs() / (loss_t.abs() + 1e-12)
-                    tail_rel_retained = tail_value.abs() / (retained_obj.abs() + 1e-12)
-
-                    tail_rel_exact_list.append(tail_rel_exact.detach())
-                    tail_rel_retained_list.append(tail_rel_retained.detach())
-                    max_z_list.append(z.max().detach())
-                    kstar_list.append(k.detach())
-
         dist_per_tree = torch.stack(distances_per_tree)
-        if self.optimization_method == "newton":
-            print(f"Distances per tree (Optimization): {dist_per_tree}")
         out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
-
-        # Print diagnostics aggregated over trees
-        if getattr(self, "print_tail_at_kstar", False) and len(tail_rel_exact_list) > 0:
-            tail_rel_exact_all = torch.stack(tail_rel_exact_list)
-            tail_rel_retained_all = torch.stack(tail_rel_retained_list)
-            max_z_all = torch.stack(max_z_list)
-            kstar_all = torch.stack(kstar_list)
-
-            print(
-                "[Tail@k*] "
-                f"tail/exact: mean={tail_rel_exact_all.mean().item():.6e}, "
-                f"max={tail_rel_exact_all.max().item():.6e} | "
-                f"tail/retained: mean={tail_rel_retained_all.mean().item():.6e}, "
-                f"max={tail_rel_retained_all.max().item():.6e} | "
-                f"max(k*h): mean={max_z_all.mean().item():.6e}, "
-                f"max={max_z_all.max().item():.6e} | "
-                f"k*: mean={kstar_all.mean().item():.6e}, "
-                f"max={kstar_all.max().item():.6e}"
-            )
 
         return out.to(dtype=orig_dtype, device=device)
     def orlicz_norm(self, d, max_iter=25, tol=1e-6):
