@@ -107,6 +107,30 @@ def parse_args():
         default=None,
         help='noisy mode for NTWD, could be None'
     )
+    parser.add_argument(
+        '--ftype',
+        type=str,
+        default='linear',
+        help='function type for nonlinear TWD, could be linear, poly, rbf'
+    )
+    parser.add_argument(
+        '--degree',
+        type=int,
+        default=3,
+        help='degree of polynomial for nonlinear TWD with poly ftype'
+    )
+    parser.add_argument(
+        '--radius',
+        type=float,
+        default=2.0,
+        help='radius of RBF for nonlinear TWD with rbf ftype'
+    )
+    parser.add_argument(
+        '--pow_beta',           
+        type=float,
+        default=1.0,
+        help='power of beta for nonlinear TWD with poly and rbf ftype'
+    )
 
     opt = parser.parse_args()
     return opt

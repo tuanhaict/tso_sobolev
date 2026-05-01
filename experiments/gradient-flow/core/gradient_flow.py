@@ -8,7 +8,7 @@ import ot
 from db_tsw.db_tsw import TWConcurrentLines
 from db_tsw.sb_tsw import Sb_TSConcurrentLines 
 from db_tsw.utils import generate_trees_frames
-
+from db_tsw.nln_tsw import TSW
 class Tree():
     def __init__(self, L, nlines, d, mean=128, std=0.1, device='cuda', gen_mode = 'gaussian_raw', fixed_trees = True):
         self.L = L
@@ -208,6 +208,14 @@ def TWD(X, Y, theta, intercept, mass_division = 'distance_based', p = 2, delta =
     L = theta.shape[0]
     nlines = theta.shape[1]
     TWD_obj = TWConcurrentLines(p=p, delta=delta, mass_division=mass_division, device=device)
+    return TWD_obj(X, Y, theta, intercept)
+def NonlinearTWD(X, Y, theta, intercept, mass_division = 'distance_based', p = 2, delta = 2., device = 'cuda', ftype='linear', degree=3, radius=2.0, pow_beta=1):
+    # print(p)
+    # print(delta)
+    # exit()
+    L = theta.shape[0]
+    nlines = theta.shape[1]
+    TWD_obj = TSW(p=p, delta=delta, mass_division=mass_division, device=device, ftype=ftype, degree=degree, radius=radius, pow_beta=pow_beta)
     return TWD_obj(X, Y, theta, intercept)
 def NTWD(X, Y, theta, intercept, mass_division = 'distance_based', p = 2, delta = 2., device = 'cuda', noisy_mode=None, lambda_=0.0, p_noise =2, p_agg=1):
     # print(p)
