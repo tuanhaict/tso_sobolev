@@ -318,7 +318,7 @@ class OSb_TSConcurrentLines:
                 bounds=(x0 - x_window, x0 + x_window),
                 options={
                     "xatol": 1e-10,
-                    "maxiter": 200,
+                    "maxiter": 10000,
                 },
             )
 
