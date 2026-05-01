@@ -446,10 +446,6 @@ class OSb_TSConcurrentLines:
             dist_per_tree = (
                 2.0 * torch.sqrt(A2)
                 - A3 / (2.0 * A2)
-                + A4 / (3.0 * (A2).pow(1.5))
-                - A5 / (4.0 * (A2)**2)
-                + A6 / (5.0 * (A2)**(2.5))
-                - A7 / (6.0 * (A2)**3)
             )
         elif isinstance(self.n_function, EntropyLogNFunction):
             A2 = torch.sum(w * h**2, dim=1)
@@ -459,7 +455,8 @@ class OSb_TSConcurrentLines:
                 torch.sqrt(2.0 *A2)
                 - A3 / (3.0 * A2)
             )
-
+        if self.optimization_method == "newton":
+            print(f"k* approx: {1/torch.sqrt(A2):.6e}")
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
         return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
