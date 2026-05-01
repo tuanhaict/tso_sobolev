@@ -18,7 +18,7 @@ sys.path.append('../')
 import utils.vmf as vmf_utils
 import utils.plot as plot_utils
 from utils.func import set_seed
-from methods import s3wd, sswd, stswd, sbstsd, osbstsd, lssotd
+from methods import s3wd, sswd, stswd, sbstsd, osbstsd, lssotd, nstswd
 
 def plot_result(X, out_path):
     k = gaussian_kde(X.T)
@@ -85,6 +85,9 @@ if __name__ == "__main__":
     if args.d_func == "stsw":
         d_func = stswd.stswd
         d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device}
+    elif args.d_func == "nstsw":
+        d_func = nstswd.nstswd
+        d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device, 'ftype': 'generalized'}
     elif args.d_func == "sbsts":
         d_func = sbstsd.sbsts
         d_args = {'p': args.p, 'ntrees': args.ntrees, 'nlines': args.nlines, 'delta': args.delta, 'device': device}
