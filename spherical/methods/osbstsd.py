@@ -219,9 +219,11 @@ class OSbSTSD():
         elif isinstance(self.n_function, LogNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            A4 = torch.sum(w * h**4, dim=1)
             dist_per_tree = (
                 2.0 * torch.sqrt(A2)
                 - A3 / (2.0 * A2)
+                + A4 / (3.0 * (A2).pow(1.5))
             )
         elif isinstance(self.n_function, EntropyLogNFunction):
             A2 = torch.sum(w * h**2, dim=1)
