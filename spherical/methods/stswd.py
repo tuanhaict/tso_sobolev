@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 from utils.func import transform
-
 class STSWD():
     def __init__(self, ntrees=200, nlines=5, p=2, delta=2, device="cuda", type="normal"):
         """
