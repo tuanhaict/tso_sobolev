@@ -86,7 +86,7 @@ for k, title in enumerate(titles):
             
             loss = 0
 
-            if k == 7:
+            if k == 0:
                 start_time = time.time()  # Start timing
                 theta_twd, intercept_twd = generate_trees_frames(
                     ntrees=int(args.L / args.n_lines),
@@ -131,7 +131,7 @@ for k, title in enumerate(titles):
                 loss += gradient_flow.NTWD(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_tsw, delta=args.delta, lambda_=args.lambda_, noisy_mode=args.noisy_mode, p_noise=args.p_noise) # delta 10
                 end_time = time.time()  # End timing
                 # print(f"Time taken for TWD distance based: {end_time - start_time:.4f} seconds")
-            elif k == 0:
+            elif k == 7:
                 start_time = time.time()  # Start timing
                 theta_twd, intercept_twd = generate_trees_frames(
                     ntrees=int(args.L / args.n_lines),
