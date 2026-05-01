@@ -440,10 +440,12 @@ class OSb_TSConcurrentLines:
             A2 = torch.sum(w * h**2, dim=1)
             A3 = torch.sum(w * torch.abs(h)**3, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
+            A5 = torch.sum(w * torch.abs(h)**5, dim=1)
             dist_per_tree = (
                 2.0 * torch.sqrt(A2)
                 - A3 / (2.0 * A2)
                 + A4 / (3.0 * (A2).pow(1.5))
+                - A5 / (4.0 * (A2)**2)
             )
         elif isinstance(self.n_function, EntropyLogNFunction):
             A2 = torch.sum(w * h**2, dim=1)
