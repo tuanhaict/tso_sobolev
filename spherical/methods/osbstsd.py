@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
-from methods.n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, OrliczNorm, PowerNFunction
+from methods.n_functions import EntropyLogNFunction, ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, LogNFunction, OrliczNorm, PowerNFunction
 from utils.func import transform
 
 class OSbSTSD():
@@ -40,6 +40,10 @@ class OSbSTSD():
             self.n_function = ExpQuadraticQuarterNFunction()
         elif n_function == "exp_2":
             self.n_function = ExpHalfLinearCorrectedNFunction()
+        elif n_function == "log":
+            self.n_function = LogNFunction()
+        elif n_function == "entropy_log":
+            self.n_function = EntropyLogNFunction()
         else:
             raise ValueError("Unsupported n_function type")
         self.use_closed_form = (isinstance(self.n_function, PowerNFunction) and 
@@ -126,6 +130,20 @@ class OSbSTSD():
             dist_per_tree = (
                 torch.sqrt((A2)/2.0)
                 + A3 / (6.0 * (A2))
+            )
+        elif isinstance(self.n_function, LogNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            dist_per_tree = (
+                2.0 * torch.sqrt(A2)
+                - A3 / (2.0 * A2)
+            )
+        elif isinstance(self.n_function, EntropyLogNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            dist_per_tree = (
+                torch.sqrt(2.0 *A2)
+                - A3 / (3.0 * A2)
             )
         else:
             raise ValueError("Unsupported N-function for Taylor GST")

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from db_tsw.n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, NFunction, PowerNFunction
+from db_tsw.n_functions import EntropyLogNFunction, ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, LogNFunction, NFunction, PowerNFunction
 from db_tsw.utils import generate_trees_frames
 from scipy.optimize import minimize_scalar
 
@@ -55,6 +55,10 @@ class OSb_TSConcurrentLines:
             self.n_function = ExpHalfLinearCorrectedNFunction()
         elif n_function == 'linear':
             self.n_function = LinearNFunction()
+        elif n_function == 'log':
+            self.n_function = LogNFunction()
+        elif n_function == 'entropy_log':
+            self.n_function = EntropyLogNFunction()
         else:
             raise ValueError(f"Unknown n_function: {n_function}")
         
@@ -243,7 +247,6 @@ class OSb_TSConcurrentLines:
 
             k = k.detach()
             kh = k * h_flat
-            print(f"Kh: {kh}")
             loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
 
@@ -348,12 +351,23 @@ class OSb_TSConcurrentLines:
                 torch.sqrt((A2)/2.0)
                 + A3 / (6.0 * (A2))
             )
+        elif isinstance(self.n_function, LogNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            dist_per_tree = (
+                2.0 * torch.sqrt(A2)
+                - A3 / (2.0 * A2)
+            )
+        elif isinstance(self.n_function, EntropyLogNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            dist_per_tree = (
+                torch.sqrt(2.0 *A2)
+                - A3 / (3.0 * A2)
+            )
 
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
-
-        if self.optimization_method == "newton":
-            print(f"Dist per tree (Taylor): {dist_per_tree}")
         return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
 

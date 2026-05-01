@@ -87,7 +87,46 @@ class ExpNFunction(NFunction):
         else:
             return np.exp(t)
 
+class EntropyLogNFunction(NFunction):
+    """Phi(t) = (1+t) * log(1+t) - t"""
 
+    def __call__(self, t):
+        if isinstance(t, torch.Tensor):
+            return (1+t) * torch.log(1+t) - t
+        else:
+            return (1+t) * np.log(1+t) - t
+
+    def derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return torch.log(1+t)
+        else:
+            return np.log(1+t)
+
+    def second_derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return 1 / (1+t)
+        else:
+            return 1 / (1+t)
+class LogNFunction(NFunction):
+    """Phi(t) = t * log(1+t)"""
+
+    def __call__(self, t):
+        if isinstance(t, torch.Tensor):
+            return t * torch.log(1+t)
+        else:
+            return t * np.log(1+t)
+
+    def derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return torch.log(1+t) + t / (1+t)
+        else:
+            return np.log(1+t) + t / (1+t)
+
+    def second_derivative(self, t):
+        if isinstance(t, torch.Tensor):
+            return 1 / (1+t) + 1/(1+t)**2
+        else:
+            return 1 / (1+t) + 1/(1+t)**2
 class ExpSquaredNFunction(NFunction):
     """Phi(t) = exp(t^2) - 1"""
 
