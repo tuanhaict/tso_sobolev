@@ -459,7 +459,7 @@ class OSb_TSConcurrentLines:
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
         if self.optimization_method == "newton":
-            print(f"k* approx: {1/torch.sqrt(A2):.6e}")
+            print(f"k* approx: {1/torch.sqrt(A2)}")
         return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
 
