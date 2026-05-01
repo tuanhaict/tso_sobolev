@@ -71,7 +71,7 @@ class OSbSTSD():
             taylor_dist = self.compute_via_taylor(h_edges, w_edges)
 
             if self.optimization_method == "newton":
-                op_dist = self.compute_via_optimization(h_edges, w_edges)
+                op_dist = self.compute_via_scipy_optimization(h_edges, w_edges)
 
                 eps = 1e-12
                 rel_err = torch.abs(taylor_dist - op_dist) / (torch.abs(op_dist) + eps)
@@ -83,6 +83,91 @@ class OSbSTSD():
                 )
 
             return taylor_dist
+    def compute_via_scipy_optimization(self, h_edges, w_edges, x_window=30.0):
+        """
+        Diagnostic-only optimization using scipy.optimize.minimize_scalar.
+
+        This intentionally detaches from the PyTorch computation graph.
+        Use only for printing / checking Taylor approximation, not as training loss.
+        """
+
+        import numpy as np
+        from scipy.optimize import minimize_scalar
+
+        orig_device = h_edges.device
+
+        # detach completely: SciPy diagnostic should not enter graph
+        h_all = h_edges.detach().double().cpu()
+        w_all = w_edges.detach().double().cpu()
+
+        num_trees = h_all.shape[0]
+        dist_per_tree = []
+
+        eps = 1e-12
+
+        for t in range(num_trees):
+            h = h_all[t].reshape(-1)
+            w = w_all[t].reshape(-1)
+
+            # remove zero-mass / zero-weight terms for numerical stability
+            mask = (h > eps) & (w > eps)
+            h = h[mask]
+            w = w[mask]
+
+            if h.numel() == 0:
+                dist_per_tree.append(0.0)
+                continue
+
+            # good scale initialization
+            k0 = 1.0 / (h.mean().item() + eps)
+            x0 = np.log(k0)
+
+            def objective_in_log_k(x):
+                """
+                Optimize over x = log k instead of k > 0 directly.
+                This avoids positivity constraints and improves numerical stability.
+                """
+                k = np.exp(x)
+
+                with torch.no_grad():
+                    kh = k * h
+                    Phi = self.n_function(kh)
+                    val = (1.0 + torch.sum(w * Phi)) / k
+
+                val = float(val.item())
+
+                if not np.isfinite(val):
+                    return np.inf
+
+                return val
+
+            res = minimize_scalar(
+                objective_in_log_k,
+                method="bounded",
+                bounds=(x0 - x_window, x0 + x_window),
+                options={
+                    "xatol": 1e-10,
+                    "maxiter": 200,
+                },
+            )
+
+            k_star = np.exp(res.x)
+            dist_t = res.fun
+
+            dist_per_tree.append(dist_t)
+
+            print(
+                f"[SciPy opt] tree={t:03d}, "
+                f"k*={k_star:.6e}, "
+                f"dist={dist_t:.6e}, "
+                f"success={res.success}"
+            )
+
+        dist_per_tree = np.asarray(dist_per_tree, dtype=np.float64)
+
+        out = np.mean(dist_per_tree ** self.p_agg) ** (1.0 / self.p_agg)
+
+        return torch.tensor(out, device=orig_device, dtype=h_edges.dtype)
     def orlicz_norm(self, d, max_iter=25, tol=1e-6):
         return OrliczNorm.apply(d, self.n_function, max_iter, tol)
     def compute_via_taylor(self, h_edges, w_edges):
