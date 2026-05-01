@@ -458,7 +458,6 @@ class OSb_TSConcurrentLines:
             dist_per_tree = (
                 torch.sqrt(2.0 *A2)
                 - A3 / (3.0 * A2)
-                + torch.sqrt(2.0)*A4 / (6.0 * (A2).pow(1.5))
             )
 
         else:
