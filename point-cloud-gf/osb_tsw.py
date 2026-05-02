@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from db_tsw.n_functions import ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, NFunction, PowerNFunction
+from db_tsw.n_functions import EntropyLogNFunction, ExpHalfLinearCorrectedNFunction, ExpNFunction, ExpQuadraticQuarterNFunction, ExpSquaredNFunction, LinearNFunction, LogNFunction, NFunction, PowerNFunction
 from db_tsw.utils import generate_trees_frames
 from scipy.optimize import minimize_scalar
 
@@ -36,6 +36,7 @@ class OSb_TSConcurrentLines:
         self.mass_division = mass_division
         self.optimization_method = optimization_method
         self.p_agg = p_agg
+        self.print_tail_at_kstar = True  # Set to True to print tail diagnostics at k*
         assert self.mass_division in ['uniform', 'distance_based'], \
             "Invalid mass division. Must be one of 'uniform', 'distance_based'"
         
@@ -54,6 +55,10 @@ class OSb_TSConcurrentLines:
             self.n_function = ExpHalfLinearCorrectedNFunction()
         elif n_function == 'linear':
             self.n_function = LinearNFunction()
+        elif n_function == 'log':
+            self.n_function = LogNFunction()
+        elif n_function == 'entropy_log':
+            self.n_function = EntropyLogNFunction()
         else:
             raise ValueError(f"Unknown n_function: {n_function}")
         
@@ -114,8 +119,21 @@ class OSb_TSConcurrentLines:
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
-            taylor_dist = self.compute_via_taylor(h_edges, w_edges)
-            return taylor_dist
+            dist = self.compute_via_original_root(h_edges, w_edges)
+
+            if self.optimization_method == "newton":
+                op_dist = self.compute_via_scipy_optimization(h_edges, w_edges)
+
+                eps = 1e-12
+                rel_err = torch.abs(dist - op_dist) / (torch.abs(op_dist) + eps)
+
+                print(
+                    f"Original Root: {dist.item():.6e}, "
+                    f"Optimization: {op_dist.item():.6e}, "
+                    f"RelErr: {rel_err.item():.6e}"
+                )
+
+            return dist
     
     def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
         """
@@ -153,54 +171,7 @@ class OSb_TSConcurrentLines:
         w_edges = edge_length
         
         return h_edges, w_edges
-    def orlicz_norm(self, d, max_iter=25, tol=1e-6):
-        """
-        Compute the Luxemburg Orlicz norm of a nonnegative vector d:
-            ||d||_{L^Phi} = inf {lambda > 0 : mean Phi(d / lambda) <= 1}
-
-        Uses binary search directly.
-        Assumes:
-        - self.n_function(x) computes Phi(x)
-        - Phi is an N-function / Young function
-        """
-        eps = 1e-12
-        d = torch.clamp(d, min=0.0)
-
-        # Zero vector
-        if torch.all(d <= eps):
-            return torch.zeros((), device=d.device, dtype=d.dtype)
-
-        def G(lmbda):
-            return self.n_function(d / lmbda).mean()
-
-        # Find bracket [lo, hi] such that
-        # G(lo) >= 1 and G(hi) <= 1
-        lo = torch.tensor(eps, device=d.device, dtype=d.dtype)
-        hi = torch.clamp(d.max(), min=torch.tensor(1.0, device=d.device, dtype=d.dtype))
-
-        # Expand hi until it is large enough
-        g_hi = G(hi)
-        expand_iter = 0
-        while g_hi > 1.0 and expand_iter < 60:
-            hi = hi * 2.0
-            g_hi = G(hi)
-            expand_iter += 1
-
-        # Binary search
-        for _ in range(max_iter):
-            mid = 0.5 * (lo + hi)
-            g_mid = G(mid)
-
-            if g_mid > 1.0:
-                lo = mid
-            else:
-                hi = mid
-
-            # relative stopping
-            if (hi - lo) / torch.clamp(hi, min=eps) < tol:
-                break
-
-        return hi
+    
     def compute_closed_form(self, h_edges, w_edges):
         """
         Compute using closed form for Phi(t) = ((p-1)^(p-1)/p^p) * t^p.
@@ -226,16 +197,25 @@ class OSb_TSConcurrentLines:
         h_edges: (T, L, E)  |h(e)|, requires_grad=True
         w_edges: (T, L, E)  w_e, no grad
         """
-        num_trees = h_edges.shape[0]
+        orig_dtype = h_edges.dtype
         device = h_edges.device
 
+        h_edges = h_edges.double()
+        w_edges = w_edges.double()
+
+        num_trees = h_edges.shape[0]
         distances_per_tree = []
+
+        # Diagnostics at k*
+        tail_rel_exact_list = []
+        tail_rel_retained_list = []
+        max_z_list = []
+        kstar_list = []
 
         for t in range(num_trees):
             h = h_edges[t]        # (L, E)
             w = w_edges[t]        # (L, E)
 
-            # Collapse lines + edges into one dimension (sum_e)
             h_flat = h.reshape(-1)
             w_flat = w.reshape(-1)
 
@@ -243,10 +223,9 @@ class OSb_TSConcurrentLines:
             # Solve k*
             # -----------------------------
             with torch.no_grad():
-                # init k using inverse mean scale
                 k = 1.0 / (h_flat.mean() + 1e-8)
 
-                for _ in range(100): 
+                for _ in range(100):
                     kh = k * h_flat
 
                     Phi = self.n_function(kh)
@@ -265,16 +244,283 @@ class OSb_TSConcurrentLines:
                     )
 
                     k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
+
             k = k.detach()
             kh = k * h_flat
             loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
             distances_per_tree.append(loss_t)
-        # Mean over trees
+
         dist_per_tree = torch.stack(distances_per_tree)
+        out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
-        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
-        # return self.orlicz_norm(dist_per_tree)
+        return out.to(dtype=orig_dtype, device=device)
+    def compute_via_scipy_optimization(self, h_edges, w_edges, x_window=30.0):
+        """
+        Diagnostic-only optimization using scipy.optimize.minimize_scalar.
 
+        This intentionally detaches from the PyTorch computation graph.
+        Use only for printing / checking Taylor approximation, not as training loss.
+        """
+
+        import numpy as np
+        from scipy.optimize import minimize_scalar
+
+        orig_device = h_edges.device
+
+        # detach completely: SciPy diagnostic should not enter graph
+        h_all = h_edges.detach().double().cpu()
+        w_all = w_edges.detach().double().cpu()
+
+        num_trees = h_all.shape[0]
+        dist_per_tree = []
+
+        eps = 1e-12
+
+        for t in range(num_trees):
+            h = h_all[t].reshape(-1)
+            w = w_all[t].reshape(-1)
+
+            # remove zero-mass / zero-weight terms for numerical stability
+            mask = (h > eps) & (w > eps)
+            h = h[mask]
+            w = w[mask]
+
+            if h.numel() == 0:
+                dist_per_tree.append(0.0)
+                continue
+
+            # good scale initialization
+            k0 = 1.0 / (h.mean().item() + eps)
+            x0 = np.log(k0)
+
+            def objective_in_log_k(x):
+                """
+                Optimize over x = log k instead of k > 0 directly.
+                This avoids positivity constraints and improves numerical stability.
+                """
+                k = np.exp(x)
+
+                with torch.no_grad():
+                    kh = k * h
+                    Phi = self.n_function(kh)
+                    val = (1.0 + torch.sum(w * Phi)) / k
+
+                val = float(val.item())
+
+                if not np.isfinite(val):
+                    return np.inf
+
+                return val
+
+            res = minimize_scalar(
+                objective_in_log_k,
+                method="bounded",
+                bounds=(x0 - x_window, x0 + x_window),
+                options={
+                    "xatol": 1e-10,
+                    "maxiter": 10000,
+                },
+            )
+
+            k_star = np.exp(res.x)
+            dist_t = res.fun
+
+            dist_per_tree.append(dist_t)
+
+            print(
+                f"[SciPy opt] tree={t:03d}, "
+                f"k*={k_star:.6e}, "
+                f"dist={dist_t:.6e}, "
+                f"success={res.success}"
+            )
+
+        dist_per_tree = np.asarray(dist_per_tree, dtype=np.float64)
+
+        out = np.mean(dist_per_tree ** self.p_agg) ** (1.0 / self.p_agg)
+
+        return torch.tensor(out, device=orig_device, dtype=h_edges.dtype)
+    def compute_via_original_root(
+        self,
+        h_edges,
+        w_edges,
+        max_iter=6,
+        k_min=1e-6,
+        k_max=10000.0,
+        bracket_factor=16.0,
+        expand_steps=4,
+        verbose=False,
+    ):
+        """
+        Fast vectorized original-root solver.
+
+        Solves:
+            min_k (1 + sum_e w_e Phi(k h_e)) / k
+
+        by solving:
+            G(k) = sum_e w_e [z Phi'(z) - Phi(z)] - 1 = 0,
+            z = k h_e.
+
+        Uses local log-space bracket around leading scale k0, expands if needed,
+        then fixed-iteration vectorized bisection.
+        """
+
+        orig_dtype = h_edges.dtype
+        device = h_edges.device
+
+        h = h_edges.reshape(h_edges.shape[0], -1)
+        w = w_edges.reshape(w_edges.shape[0], -1)
+
+        h_det = h.detach()
+        w_det = w.detach()
+
+        T = h.shape[0]
+        eps = 1e-12
+
+        A2 = torch.sum(w_det * h_det.square(), dim=1)
+        valid = A2 > eps
+
+        # Better leading scale depending on N-function.
+        # These are only for bracketing, not final formula.
+        if isinstance(self.n_function, ExpNFunction):
+            k0 = torch.sqrt(2.0 / A2.clamp_min(eps))
+        elif isinstance(self.n_function, EntropyLogNFunction):
+            k0 = torch.sqrt(2.0 / A2.clamp_min(eps))
+        else:
+            k0 = 1.0 / torch.sqrt(A2.clamp_min(eps))
+
+        k0 = torch.clamp(k0, min=k_min, max=k_max)
+
+        global_lo = float(np.log(k_min))
+        global_hi = float(np.log(k_max))
+        log_factor = float(np.log(bracket_factor))
+
+        lo_x = torch.clamp(torch.log(k0) - log_factor, min=global_lo, max=global_hi)
+        hi_x = torch.clamp(torch.log(k0) + log_factor, min=global_lo, max=global_hi)
+
+        def G_from_x(x):
+            k = torch.exp(x)              # (T,)
+            z = k[:, None] * h_det        # (T, LE)
+
+            Phi = self.n_function(z)
+            Phi_p = self.n_function.derivative(z)
+
+            H = z * Phi_p - Phi
+            H = torch.nan_to_num(H, nan=1e30, posinf=1e30, neginf=-1e30)
+
+            G = torch.sum(w_det * H, dim=1) - 1.0
+            G = torch.nan_to_num(G, nan=1e30, posinf=1e30, neginf=-1e30)
+
+            return G
+
+        with torch.no_grad():
+            # --------------------------------------------------
+            # Bracket root: need G(lo) <= 0 <= G(hi)
+            # --------------------------------------------------
+            G_lo = G_from_x(lo_x)
+            G_hi = G_from_x(hi_x)
+
+            for _ in range(expand_steps):
+                need_left = valid & (G_lo > 0.0)
+                need_right = valid & (G_hi < 0.0)
+
+                # expand only trees whose bracket is bad
+                lo_x = torch.where(
+                    need_left,
+                    torch.clamp(lo_x - log_factor, min=global_lo),
+                    lo_x,
+                )
+                hi_x = torch.where(
+                    need_right,
+                    torch.clamp(hi_x + log_factor, max=global_hi),
+                    hi_x,
+                )
+
+                G_lo = G_from_x(lo_x)
+                G_hi = G_from_x(hi_x)
+
+            bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
+
+            # Fallback to full global bracket for trees still not bracketed.
+            bad = valid & (~bracketed)
+            if bool(bad.any().item()):
+                lo_x = torch.where(
+                    bad,
+                    torch.full_like(lo_x, global_lo),
+                    lo_x,
+                )
+                hi_x = torch.where(
+                    bad,
+                    torch.full_like(hi_x, global_hi),
+                    hi_x,
+                )
+
+                G_lo = G_from_x(lo_x)
+                G_hi = G_from_x(hi_x)
+                bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
+
+            if verbose:
+                bad2 = int((valid & (~bracketed)).sum().item())
+                if bad2 > 0:
+                    print(
+                        f"[WARNING] {bad2}/{T} trees still not bracketed. "
+                        f"Will clip to endpoint. Increase k_max."
+                    )
+
+            # --------------------------------------------------
+            # Fixed-iteration vectorized bisection.
+            # No early break: avoids CPU-GPU sync.
+            # --------------------------------------------------
+            for _ in range(max_iter):
+                mid_x = 0.5 * (lo_x + hi_x)
+                G_mid = G_from_x(mid_x)
+
+                go_right = G_mid < 0.0
+
+                lo_x = torch.where(bracketed & go_right, mid_x, lo_x)
+                hi_x = torch.where(bracketed & (~go_right), mid_x, hi_x)
+
+            x_star = 0.5 * (lo_x + hi_x)
+
+            # If not bracketed, choose endpoint based on sign.
+            # If G_hi < 0, root is above hi -> use hi.
+            # If G_lo > 0, root is below lo -> use lo.
+            x_star = torch.where(
+                bracketed & valid,
+                x_star,
+                torch.where(G_hi < 0.0, hi_x, lo_x),
+            )
+
+            k_star = torch.exp(x_star).detach()
+            k_star = torch.where(valid, k_star, torch.ones_like(k_star))
+
+        # --------------------------------------------------
+        # Final objective with graph
+        # --------------------------------------------------
+        k_eval = k_star.to(dtype=h.dtype).clamp_min(k_min)
+
+        z = k_eval[:, None] * h
+        Phi = self.n_function(z)
+
+        dist_per_tree = (1.0 + torch.sum(w * Phi, dim=1)) / k_eval
+
+        valid_graph = torch.sum(w * h.square(), dim=1) > eps
+        dist_per_tree = torch.where(
+            valid_graph,
+            dist_per_tree,
+            torch.zeros_like(dist_per_tree),
+        )
+
+        out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+
+        if verbose and bool(valid.any().item()):
+            print(
+                f"[Original root robust] "
+                f"k*: min={k_star[valid].min().item():.3e}, "
+                f"max={k_star[valid].max().item():.3e}, "
+                f"mean={k_star[valid].mean().item():.3e}"
+            )
+
+        return out.to(device=device, dtype=orig_dtype)
 
     def compute_via_taylor(self, h_edges, w_edges):
         eps = 1e-8
@@ -301,6 +547,7 @@ class OSb_TSConcurrentLines:
         elif isinstance(self.n_function, ExpSquaredNFunction):
             A2 = torch.sum(w * h**2, dim=1)
             A4 = torch.sum(w * h**4, dim=1)
+
             dist_per_tree = (
                 2.0 * torch.sqrt(A2)
                 + A4 / (2.0 * (A2).pow(1.5))
@@ -324,10 +571,30 @@ class OSb_TSConcurrentLines:
                 torch.sqrt((A2)/2.0)
                 + A3 / (6.0 * (A2))
             )
-
+        elif isinstance(self.n_function, LogNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            A4 = torch.sum(w * h**4, dim=1)
+            A5 = torch.sum(w * torch.abs(h)**5, dim=1)
+            A7 = torch.sum(w * torch.abs(h)**7, dim=1)
+            A6 = torch.sum(w * h**6, dim=1)
+            dist_per_tree = (
+                2.0 * torch.sqrt(A2)
+                - A3 / (2.0 * A2)
+            )
+        elif isinstance(self.n_function, EntropyLogNFunction):
+            A2 = torch.sum(w * h**2, dim=1)
+            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
+            A4 = torch.sum(w * h**4, dim=1)
+            dist_per_tree = (
+                torch.sqrt(2.0 *A2)
+                - A3 / (3.0 * A2)
+            )
+        
         else:
             raise ValueError("Unsupported N-function for Taylor GST")
-
+        if self.optimization_method == "newton":
+            print(f"k* approx: {1/torch.sqrt(A2)}")
         return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
 

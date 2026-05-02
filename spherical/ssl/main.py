@@ -83,7 +83,7 @@ def prepare_loader(opt: Options) -> DataLoader:
         crop_size=32,
         crop_scale=(0.2, 1.0),
     )
-    dataset = CIFAR10(opt.data_folder, train=True, download=True)
+    dataset = CIFAR10(opt.data_folder, train=True, download=False)
     dataset = TwoAugUnsupervisedDataset(dataset, transform=transform)
     return torch.utils.data.DataLoader(
         dataset,
