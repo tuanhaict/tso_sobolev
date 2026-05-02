@@ -284,8 +284,8 @@ def pretrain(opt: Options):
         y0 = F.normalize(y0, p=2, dim=-1)
 
         unif_loss_val = (
-            osbsts(x, x0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg) + 
-            osbsts(y, y0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg)
+            osbsts(x, x0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg, optimization_method="newton") + 
+            osbsts(y, y0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg, optimization_method="newton")
         ) / 2
         return align_loss_val, unif_loss_val
     def simclr_loss(x, y):
