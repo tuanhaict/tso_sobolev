@@ -343,25 +343,25 @@ class OSb_TSConcurrentLines:
         self,
         h_edges,
         w_edges,
-        max_iter=12,
+        max_iter=8,
         k_min=1e-6,
         k_max=10000.0,
-        bracket_factor=8.0,
-        expand_steps=3,
-        x_tol=1e-2,
-        g_tol=1e-2,
+        bracket_factor=32.0,
+        expand_steps=6,
         verbose=False,
     ):
         """
-        Fast original-root solver.
+        Fast vectorized original-root solver.
 
-        Main speed trick:
-        - do NOT search the full [k_min, k_max] interval;
-        - initialize around leading scale k0 ~ 1 / sqrt(A2);
-        - search locally in [k0/bracket_factor, k0*bracket_factor];
-        - expand only if the root is not bracketed.
+        Solves:
+            min_k (1 + sum_e w_e Phi(k h_e)) / k
 
-        This is much faster when k* is small/moderate, e.g. k*=4,5.
+        by solving:
+            G(k) = sum_e w_e [z Phi'(z) - Phi(z)] - 1 = 0,
+            z = k h_e.
+
+        Uses local log-space bracket around leading scale k0, expands if needed,
+        then fixed-iteration vectorized bisection.
         """
 
         orig_dtype = h_edges.dtype
@@ -376,36 +376,30 @@ class OSb_TSConcurrentLines:
         T = h.shape[0]
         eps = 1e-12
 
-        # --------------------------------------------------
-        # Valid trees and leading scale
-        # --------------------------------------------------
         A2 = torch.sum(w_det * h_det.square(), dim=1)
         valid = A2 > eps
 
-        # Leading scale. For exp, true leading k0 is sqrt(2/A2),
-        # but 1/sqrt(A2) is close enough for bracketing.
-        k0 = 1.0 / torch.sqrt(A2.clamp_min(eps))
+        # Better leading scale depending on N-function.
+        # These are only for bracketing, not final formula.
+        if isinstance(self.n_function, ExpNFunction):
+            k0 = torch.sqrt(2.0 / A2.clamp_min(eps))
+        elif isinstance(self.n_function, EntropyLogNFunction):
+            k0 = torch.sqrt(2.0 / A2.clamp_min(eps))
+        else:
+            k0 = 1.0 / torch.sqrt(A2.clamp_min(eps))
+
         k0 = torch.clamp(k0, min=k_min, max=k_max)
 
+        global_lo = float(np.log(k_min))
+        global_hi = float(np.log(k_max))
         log_factor = float(np.log(bracket_factor))
 
-        center_x = torch.log(k0)
-
-        lo_x = torch.clamp(
-            center_x - log_factor,
-            min=float(np.log(k_min)),
-            max=float(np.log(k_max)),
-        )
-
-        hi_x = torch.clamp(
-            center_x + log_factor,
-            min=float(np.log(k_min)),
-            max=float(np.log(k_max)),
-        )
+        lo_x = torch.clamp(torch.log(k0) - log_factor, min=global_lo, max=global_hi)
+        hi_x = torch.clamp(torch.log(k0) + log_factor, min=global_lo, max=global_hi)
 
         def G_from_x(x):
-            k = torch.exp(x)
-            z = k[:, None] * h_det
+            k = torch.exp(x)              # (T,)
+            z = k[:, None] * h_det        # (T, LE)
 
             Phi = self.n_function(z)
             Phi_p = self.n_function.derivative(z)
@@ -419,30 +413,22 @@ class OSb_TSConcurrentLines:
             return G
 
         with torch.no_grad():
-            global_lo = float(np.log(k_min))
-            global_hi = float(np.log(k_max))
-
             # --------------------------------------------------
-            # Local bracket check
-            # Need G(lo) <= 0 <= G(hi)
+            # Bracket root: need G(lo) <= 0 <= G(hi)
             # --------------------------------------------------
             G_lo = G_from_x(lo_x)
             G_hi = G_from_x(hi_x)
 
-            # Expand only bad brackets, vectorized.
             for _ in range(expand_steps):
                 need_left = valid & (G_lo > 0.0)
                 need_right = valid & (G_hi < 0.0)
 
-                if not bool((need_left | need_right).any().item()):
-                    break
-
+                # expand only trees whose bracket is bad
                 lo_x = torch.where(
                     need_left,
                     torch.clamp(lo_x - log_factor, min=global_lo),
                     lo_x,
                 )
-
                 hi_x = torch.where(
                     need_right,
                     torch.clamp(hi_x + log_factor, max=global_hi),
@@ -454,42 +440,48 @@ class OSb_TSConcurrentLines:
 
             bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
 
+            # Fallback to full global bracket for trees still not bracketed.
+            bad = valid & (~bracketed)
+            if bool(bad.any().item()):
+                lo_x = torch.where(
+                    bad,
+                    torch.full_like(lo_x, global_lo),
+                    lo_x,
+                )
+                hi_x = torch.where(
+                    bad,
+                    torch.full_like(hi_x, global_hi),
+                    hi_x,
+                )
+
+                G_lo = G_from_x(lo_x)
+                G_hi = G_from_x(hi_x)
+                bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
+
             if verbose:
-                bad = int((valid & (~bracketed)).sum().item())
-                if bad > 0:
+                bad2 = int((valid & (~bracketed)).sum().item())
+                if bad2 > 0:
                     print(
-                        f"[WARNING] {bad}/{T} trees not bracketed. "
-                        f"Will clip to nearest bracket endpoint."
+                        f"[WARNING] {bad2}/{T} trees still not bracketed. "
+                        f"Will clip to endpoint. Increase k_max."
                     )
 
-            done = ~bracketed | ~valid
-
             # --------------------------------------------------
-            # Bisection in local log-space bracket
+            # Fixed-iteration vectorized bisection.
+            # No early break: avoids CPU-GPU sync.
             # --------------------------------------------------
             for _ in range(max_iter):
                 mid_x = 0.5 * (lo_x + hi_x)
                 G_mid = G_from_x(mid_x)
 
                 go_right = G_mid < 0.0
-                active = ~done
 
-                lo_x = torch.where(active & go_right, mid_x, lo_x)
-                hi_x = torch.where(active & (~go_right), mid_x, hi_x)
-
-                width_x = hi_x - lo_x
-                small_interval = width_x < x_tol
-                small_residual = torch.abs(G_mid) < g_tol
-
-                done = done | small_interval | small_residual
-
-                # Optional early stop. This syncs CPU/GPU, but max_iter is small.
-                # if bool(done.all().item()):
-                #     break
+                lo_x = torch.where(bracketed & go_right, mid_x, lo_x)
+                hi_x = torch.where(bracketed & (~go_right), mid_x, hi_x)
 
             x_star = 0.5 * (lo_x + hi_x)
 
-            # If not bracketed, choose clipped endpoint based on sign.
+            # If not bracketed, choose endpoint based on sign.
             # If G_hi < 0, root is above hi -> use hi.
             # If G_lo > 0, root is below lo -> use lo.
             x_star = torch.where(
@@ -499,16 +491,10 @@ class OSb_TSConcurrentLines:
             )
 
             k_star = torch.exp(x_star).detach()
-
-            # Invalid trees get k=1 and will be zeroed later.
-            k_star = torch.where(
-                valid,
-                k_star,
-                torch.ones_like(k_star),
-            )
+            k_star = torch.where(valid, k_star, torch.ones_like(k_star))
 
         # --------------------------------------------------
-        # Final objective with computational graph
+        # Final objective with graph
         # --------------------------------------------------
         k_eval = k_star.to(dtype=h.dtype).clamp_min(k_min)
 
@@ -528,7 +514,7 @@ class OSb_TSConcurrentLines:
 
         if verbose and bool(valid.any().item()):
             print(
-                f"[Original root local-log-bisect] "
+                f"[Original root robust] "
                 f"k*: min={k_star[valid].min().item():.3e}, "
                 f"max={k_star[valid].max().item():.3e}, "
                 f"mean={k_star[valid].mean().item():.3e}"
