@@ -346,8 +346,8 @@ class OSb_TSConcurrentLines:
         max_iter=12,
         k_min=1e-6,
         k_max=10000.0,
-        x_tol=1e-3,
-        g_tol=1e-3,
+        x_tol=1e-2,
+        g_tol=1e-2,
         verbose=False,
     ):
 
