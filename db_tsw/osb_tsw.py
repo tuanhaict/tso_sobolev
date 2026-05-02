@@ -346,7 +346,7 @@ class OSb_TSConcurrentLines:
         max_iter=12,
         k_min=1e-6,
         k_max=10000.0,
-        bracket_factor=16.0,
+        bracket_factor=8.0,
         expand_steps=3,
         x_tol=1e-2,
         g_tol=1e-2,
