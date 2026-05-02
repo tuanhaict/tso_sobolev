@@ -69,7 +69,7 @@ class OSbSTSD():
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
-            dist = self.compute_via_taylor(h_edges, w_edges)
+            dist = self.compute_via_original_root(h_edges, w_edges)
 
             if self.optimization_method == "newton":
                 op_dist = self.compute_via_scipy_optimization(h_edges, w_edges)
