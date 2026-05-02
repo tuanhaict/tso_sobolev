@@ -343,56 +343,69 @@ class OSb_TSConcurrentLines:
         self,
         h_edges,
         w_edges,
-        max_iter=12,
+        max_iter=6,
         k_min=1e-6,
         k_max=10000.0,
-        x_tol=1e-2,
+        bracket_factor=16.0,
+        expand_steps=3,
+        x_tol=5e-2,
         g_tol=1e-2,
         verbose=False,
     ):
+        """
+        Fast original-root solver.
+
+        Main speed trick:
+        - do NOT search the full [k_min, k_max] interval;
+        - initialize around leading scale k0 ~ 1 / sqrt(A2);
+        - search locally in [k0/bracket_factor, k0*bracket_factor];
+        - expand only if the root is not bracketed.
+
+        This is much faster when k* is small/moderate, e.g. k*=4,5.
+        """
 
         orig_dtype = h_edges.dtype
         device = h_edges.device
 
-        # Shape: (T, L*E)
         h = h_edges.reshape(h_edges.shape[0], -1)
         w = w_edges.reshape(w_edges.shape[0], -1)
-
-        # For speed, keep same dtype. Do NOT force double unless needed.
-        solve_dtype = h.dtype
 
         h_det = h.detach()
         w_det = w.detach()
 
         T = h.shape[0]
-        eps = torch.tensor(1e-12, device=device, dtype=solve_dtype)
-        huge = torch.tensor(1e30, device=device, dtype=solve_dtype)
+        eps = 1e-12
 
-        # Valid trees: nonzero discrepancy
+        # --------------------------------------------------
+        # Valid trees and leading scale
+        # --------------------------------------------------
         A2 = torch.sum(w_det * h_det.square(), dim=1)
         valid = A2 > eps
 
-        # log-space bracket
-        lo_x = torch.full(
-            (T,),
-            float(np.log(k_min)),
-            device=device,
-            dtype=solve_dtype,
+        # Leading scale. For exp, true leading k0 is sqrt(2/A2),
+        # but 1/sqrt(A2) is close enough for bracketing.
+        k0 = 1.0 / torch.sqrt(A2.clamp_min(eps))
+        k0 = torch.clamp(k0, min=k_min, max=k_max)
+
+        log_factor = float(np.log(bracket_factor))
+
+        center_x = torch.log(k0)
+
+        lo_x = torch.clamp(
+            center_x - log_factor,
+            min=float(np.log(k_min)),
+            max=float(np.log(k_max)),
         )
-        hi_x = torch.full(
-            (T,),
-            float(np.log(k_max)),
-            device=device,
-            dtype=solve_dtype,
+
+        hi_x = torch.clamp(
+            center_x + log_factor,
+            min=float(np.log(k_min)),
+            max=float(np.log(k_max)),
         )
 
         def G_from_x(x):
-            """
-            x: (T,)
-            returns G(exp(x)): (T,)
-            """
-            k = torch.exp(x)                      # (T,)
-            z = k[:, None] * h_det                # (T, LE)
+            k = torch.exp(x)
+            z = k[:, None] * h_det
 
             Phi = self.n_function(z)
             Phi_p = self.n_function.derivative(z)
@@ -406,56 +419,88 @@ class OSb_TSConcurrentLines:
             return G
 
         with torch.no_grad():
-            # Check upper bracket once
+            global_lo = float(np.log(k_min))
+            global_hi = float(np.log(k_max))
+
+            # --------------------------------------------------
+            # Local bracket check
+            # Need G(lo) <= 0 <= G(hi)
+            # --------------------------------------------------
+            G_lo = G_from_x(lo_x)
             G_hi = G_from_x(hi_x)
-            bracketed = valid & (G_hi >= 0.0)
+
+            # Expand only bad brackets, vectorized.
+            for _ in range(expand_steps):
+                need_left = valid & (G_lo > 0.0)
+                need_right = valid & (G_hi < 0.0)
+
+                if not bool((need_left | need_right).any().item()):
+                    break
+
+                lo_x = torch.where(
+                    need_left,
+                    torch.clamp(lo_x - log_factor, min=global_lo),
+                    lo_x,
+                )
+
+                hi_x = torch.where(
+                    need_right,
+                    torch.clamp(hi_x + log_factor, max=global_hi),
+                    hi_x,
+                )
+
+                G_lo = G_from_x(lo_x)
+                G_hi = G_from_x(hi_x)
+
+            bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
 
             if verbose:
                 bad = int((valid & (~bracketed)).sum().item())
                 if bad > 0:
                     print(
-                        f"[WARNING] {bad}/{T} trees have G(k_max)<0. "
-                        f"k* may exceed k_max={k_max}; clipping to k_max."
+                        f"[WARNING] {bad}/{T} trees not bracketed. "
+                        f"Will clip to nearest bracket endpoint."
                     )
 
             done = ~bracketed | ~valid
 
-            # Vectorized bisection
+            # --------------------------------------------------
+            # Bisection in local log-space bracket
+            # --------------------------------------------------
             for _ in range(max_iter):
                 mid_x = 0.5 * (lo_x + hi_x)
                 G_mid = G_from_x(mid_x)
 
                 go_right = G_mid < 0.0
-
                 active = ~done
 
                 lo_x = torch.where(active & go_right, mid_x, lo_x)
                 hi_x = torch.where(active & (~go_right), mid_x, hi_x)
 
-                # Early stopping:
-                # width in x = approximate relative uncertainty in k
                 width_x = hi_x - lo_x
                 small_interval = width_x < x_tol
                 small_residual = torch.abs(G_mid) < g_tol
 
                 done = done | small_interval | small_residual
 
-                # This syncs once per iteration, but max_iter is small.
-                if bool(done.all().item()):
-                    break
+                # Optional early stop. This syncs CPU/GPU, but max_iter is small.
+                # if bool(done.all().item()):
+                #     break
 
             x_star = 0.5 * (lo_x + hi_x)
 
-            # If not bracketed, clip to k_max
+            # If not bracketed, choose clipped endpoint based on sign.
+            # If G_hi < 0, root is above hi -> use hi.
+            # If G_lo > 0, root is below lo -> use lo.
             x_star = torch.where(
                 bracketed & valid,
                 x_star,
-                hi_x,
+                torch.where(G_hi < 0.0, hi_x, lo_x),
             )
 
             k_star = torch.exp(x_star).detach()
 
-            # Invalid trees get k=1 but will be zeroed out later
+            # Invalid trees get k=1 and will be zeroed later.
             k_star = torch.where(
                 valid,
                 k_star,
@@ -472,7 +517,7 @@ class OSb_TSConcurrentLines:
 
         dist_per_tree = (1.0 + torch.sum(w * Phi, dim=1)) / k_eval
 
-        valid_graph = torch.sum(w * h.square(), dim=1) > 1e-12
+        valid_graph = torch.sum(w * h.square(), dim=1) > eps
         dist_per_tree = torch.where(
             valid_graph,
             dist_per_tree,
@@ -483,7 +528,7 @@ class OSb_TSConcurrentLines:
 
         if verbose and bool(valid.any().item()):
             print(
-                f"[Original root log-bisect] "
+                f"[Original root local-log-bisect] "
                 f"k*: min={k_star[valid].min().item():.3e}, "
                 f"max={k_star[valid].max().item():.3e}, "
                 f"mean={k_star[valid].mean().item():.3e}"
