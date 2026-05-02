@@ -343,181 +343,153 @@ class OSb_TSConcurrentLines:
         self,
         h_edges,
         w_edges,
-        max_iter=25,
+        max_iter=12,
+        k_min=1e-6,
         k_max=10000.0,
-        k_tol=1e-4,
-        g_tol=1e-8,
+        x_tol=1e-3,
+        g_tol=1e-4,
         verbose=False,
     ):
-        """
-        Faster torch-only root solver for the original univariate optimization:
-            min_{k>0} (1 + sum_e w_e Phi(k h_e)) / k
-
-        Solve first-order condition:
-            G(k) = sum_e w_e [z_e Phi'(z_e) - Phi(z_e)] - 1 = 0,
-        where z_e = k h_e.
-
-        Assumes k* is not too large, e.g. k* <= k_max.
-        k* is detached; final objective keeps graph via h_edges/w_edges.
-        """
 
         orig_dtype = h_edges.dtype
-        orig_device = h_edges.device
+        device = h_edges.device
 
-        h_all = h_edges.reshape(h_edges.shape[0], -1).double()
-        w_all = w_edges.reshape(w_edges.shape[0], -1).double()
+        # Shape: (T, L*E)
+        h = h_edges.reshape(h_edges.shape[0], -1)
+        w = w_edges.reshape(w_edges.shape[0], -1)
 
-        eps = 1e-12
-        num_trees = h_all.shape[0]
-        dist_per_tree = []
-        kstar_list = []
+        # For speed, keep same dtype. Do NOT force double unless needed.
+        solve_dtype = h.dtype
 
-        # Candidate upper bounds. This avoids slow repeated doubling.
-        candidate_bounds = []
-        v = 1.0
-        while v < k_max:
-            candidate_bounds.append(v)
-            v *= 2.0
-        candidate_bounds.append(k_max)
+        h_det = h.detach()
+        w_det = w.detach()
 
-        for t in range(num_trees):
-            h_t = h_all[t]
-            w_t = w_all[t]
+        T = h.shape[0]
+        eps = torch.tensor(1e-12, device=device, dtype=solve_dtype)
+        huge = torch.tensor(1e30, device=device, dtype=solve_dtype)
 
-            with torch.no_grad():
-                h_det = h_t.detach()
-                w_det = w_t.detach()
+        # Valid trees: nonzero discrepancy
+        A2 = torch.sum(w_det * h_det.square(), dim=1)
+        valid = A2 > eps
 
-                mask = (h_det > eps) & (w_det > eps)
-                h_s = h_det[mask]
-                w_s = w_det[mask]
+        # log-space bracket
+        lo_x = torch.full(
+            (T,),
+            float(np.log(k_min)),
+            device=device,
+            dtype=solve_dtype,
+        )
+        hi_x = torch.full(
+            (T,),
+            float(np.log(k_max)),
+            device=device,
+            dtype=solve_dtype,
+        )
 
-                if h_s.numel() == 0:
-                    k_star = torch.tensor(
-                        0.0,
-                        device=orig_device,
-                        dtype=torch.float64,
-                    )
-                    dist_per_tree.append(
-                        torch.zeros((), device=orig_device, dtype=torch.float64)
-                    )
-                    kstar_list.append(k_star)
-                    continue
+        def G_from_x(x):
+            """
+            x: (T,)
+            returns G(exp(x)): (T,)
+            """
+            k = torch.exp(x)                      # (T,)
+            z = k[:, None] * h_det                # (T, LE)
 
-                def G(k):
-                    z = k * h_s
-                    Phi = self.n_function(z)
-                    Phi_p = self.n_function.derivative(z)
-                    return torch.sum(w_s * (z * Phi_p - Phi)) - 1.0
+            Phi = self.n_function(z)
+            Phi_p = self.n_function.derivative(z)
 
-                lo = torch.tensor(0.0, device=orig_device, dtype=torch.float64)
+            H = z * Phi_p - Phi
+            H = torch.nan_to_num(H, nan=1e30, posinf=1e30, neginf=-1e30)
 
-                # --------------------------------------------------
-                # Fast bracket search using fixed candidate bounds
-                # --------------------------------------------------
-                hi = None
-                g_hi = None
+            G = torch.sum(w_det * H, dim=1) - 1.0
+            G = torch.nan_to_num(G, nan=1e30, posinf=1e30, neginf=-1e30)
 
-                for cand in candidate_bounds:
-                    if cand > k_max:
-                        cand = k_max
+            return G
 
-                    cand_t = torch.tensor(
-                        cand,
-                        device=orig_device,
-                        dtype=torch.float64,
-                    )
-
-                    g_val = G(cand_t)
-
-                    # If G(cand) is inf, it is certainly above zero.
-                    if torch.isinf(g_val) and g_val > 0:
-                        hi = cand_t
-                        g_hi = g_val
-                        break
-
-                    # If finite and crosses zero, bracket found.
-                    if torch.isfinite(g_val) and g_val >= 0.0:
-                        hi = cand_t
-                        g_hi = g_val
-                        break
-
-                # If still not bracketed, use k_max as fallback.
-                if hi is None:
-                    hi = torch.tensor(
-                        k_max,
-                        device=orig_device,
-                        dtype=torch.float64,
-                    )
-                    g_hi = G(hi)
-
-                    if verbose:
-                        print(
-                            f"[WARNING] tree={t}: G(k_max)={g_hi.item():.3e} < 0. "
-                            f"k* may exceed k_max={k_max}."
-                        )
-
-                    # If k_max is not enough, use it as clipped k*.
-                    # This should not happen if your observation k* <= k_max is true.
-                    if torch.isfinite(g_hi) and g_hi < 0.0:
-                        k_star = hi.detach()
-                    else:
-                        k_star = hi.detach()
-
-                else:
-                    # --------------------------------------------------
-                    # Bisection with early stopping
-                    # --------------------------------------------------
-                    for _ in range(max_iter):
-                        mid = 0.5 * (lo + hi)
-                        g_mid = G(mid)
-
-                        # Early stop by root residual
-                        if torch.isfinite(g_mid) and torch.abs(g_mid) < g_tol:
-                            lo = mid
-                            hi = mid
-                            break
-
-                        if g_mid < 0.0:
-                            lo = mid
-                        else:
-                            hi = mid
-
-                        # Early stop by relative interval width
-                        width = hi - lo
-                        scale = torch.clamp(torch.abs(hi), min=1.0)
-
-                        if width / scale < k_tol:
-                            break
-
-                    k_star = 0.5 * (lo + hi)
-
-            k_star = k_star.detach()
-
-            # --------------------------------------------------
-            # Evaluate original objective with graph
-            # --------------------------------------------------
-            if k_star <= eps:
-                loss_t = torch.zeros((), device=orig_device, dtype=torch.float64)
-            else:
-                z = k_star * h_t
-                loss_t = (1.0 + torch.sum(w_t * self.n_function(z))) / k_star
-
-            dist_per_tree.append(loss_t)
-            kstar_list.append(k_star)
+        with torch.no_grad():
+            # Check upper bracket once
+            G_hi = G_from_x(hi_x)
+            bracketed = valid & (G_hi >= 0.0)
 
             if verbose:
-                print(
-                    f"[Original root fast] tree={t:03d}, "
-                    f"k*={k_star.item():.6e}, "
-                    f"dist={loss_t.detach().item():.6e}"
-                )
+                bad = int((valid & (~bracketed)).sum().item())
+                if bad > 0:
+                    print(
+                        f"[WARNING] {bad}/{T} trees have G(k_max)<0. "
+                        f"k* may exceed k_max={k_max}; clipping to k_max."
+                    )
 
-        dist_per_tree = torch.stack(dist_per_tree)
+            done = ~bracketed | ~valid
+
+            # Vectorized bisection
+            for _ in range(max_iter):
+                mid_x = 0.5 * (lo_x + hi_x)
+                G_mid = G_from_x(mid_x)
+
+                go_right = G_mid < 0.0
+
+                active = ~done
+
+                lo_x = torch.where(active & go_right, mid_x, lo_x)
+                hi_x = torch.where(active & (~go_right), mid_x, hi_x)
+
+                # Early stopping:
+                # width in x = approximate relative uncertainty in k
+                width_x = hi_x - lo_x
+                small_interval = width_x < x_tol
+                small_residual = torch.abs(G_mid) < g_tol
+
+                done = done | small_interval | small_residual
+
+                # This syncs once per iteration, but max_iter is small.
+                if bool(done.all().item()):
+                    break
+
+            x_star = 0.5 * (lo_x + hi_x)
+
+            # If not bracketed, clip to k_max
+            x_star = torch.where(
+                bracketed & valid,
+                x_star,
+                hi_x,
+            )
+
+            k_star = torch.exp(x_star).detach()
+
+            # Invalid trees get k=1 but will be zeroed out later
+            k_star = torch.where(
+                valid,
+                k_star,
+                torch.ones_like(k_star),
+            )
+
+        # --------------------------------------------------
+        # Final objective with computational graph
+        # --------------------------------------------------
+        k_eval = k_star.to(dtype=h.dtype).clamp_min(k_min)
+
+        z = k_eval[:, None] * h
+        Phi = self.n_function(z)
+
+        dist_per_tree = (1.0 + torch.sum(w * Phi, dim=1)) / k_eval
+
+        valid_graph = torch.sum(w * h.square(), dim=1) > 1e-12
+        dist_per_tree = torch.where(
+            valid_graph,
+            dist_per_tree,
+            torch.zeros_like(dist_per_tree),
+        )
 
         out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
-        return out.to(device=orig_device, dtype=orig_dtype)
+        if verbose and bool(valid.any().item()):
+            print(
+                f"[Original root log-bisect] "
+                f"k*: min={k_star[valid].min().item():.3e}, "
+                f"max={k_star[valid].max().item():.3e}, "
+                f"mean={k_star[valid].mean().item():.3e}"
+            )
+
+        return out.to(device=device, dtype=orig_dtype)
 
     def compute_via_taylor(self, h_edges, w_edges):
         eps = 1e-8
