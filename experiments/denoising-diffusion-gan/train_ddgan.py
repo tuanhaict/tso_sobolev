@@ -449,7 +449,7 @@ def train(rank, args):
             d = x.shape[1] * x.shape[2] * x.shape[3] + 1
             
         pixel_mean = pixel_mean / num_sample
-        OSbTS_obj = torch.compile(OSb_TSConcurrentLines(p=args.ts_sobolev_p, delta=args.twd_delta, mass_division='distance_based', device=device, n_function=args.n_function, p_agg=args.p_agg))   
+        OSbTS_obj = torch.compile(OSb_TSConcurrentLines(p=args.ts_sobolev_p, delta=args.twd_delta, mass_division='distance_based', device=device, n_function=args.n_function, p_agg=args.p_agg, optimization_method="newton"))   
     start_time = time.time()
     for epoch in range(init_epoch, args.num_epoch+1):
         if rank == 0:
