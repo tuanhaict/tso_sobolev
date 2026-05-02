@@ -343,12 +343,12 @@ class OSb_TSConcurrentLines:
         self,
         h_edges,
         w_edges,
-        max_iter=4,
+        max_iter=6,
         k_min=1e-6,
         k_max=10000.0,
-        bracket_factor=32.0,
-        expand_steps=6,
-        verbose=True,
+        bracket_factor=16.0,
+        expand_steps=4,
+        verbose=False,
     ):
         """
         Fast vectorized original-root solver.
