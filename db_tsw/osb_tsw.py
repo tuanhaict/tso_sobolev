@@ -121,17 +121,17 @@ class OSb_TSConcurrentLines:
         else:
             dist = self.compute_via_original_root(h_edges, w_edges)
 
-            # if self.optimization_method == "newton":
-            #     op_dist = self.compute_via_scipy_optimization(h_edges, w_edges)
+            if self.optimization_method == "newton":
+                op_dist = self.compute_via_scipy_optimization(h_edges, w_edges)
 
-            #     eps = 1e-12
-            #     rel_err = torch.abs(dist - op_dist) / (torch.abs(op_dist) + eps)
+                eps = 1e-12
+                rel_err = torch.abs(dist - op_dist) / (torch.abs(op_dist) + eps)
 
-            #     print(
-            #         f"Original Root: {dist.item():.6e}, "
-            #         f"Optimization: {op_dist.item():.6e}, "
-            #         f"RelErr: {rel_err.item():.6e}"
-            #     )
+                print(
+                    f"Original Root: {dist.item():.6e}, "
+                    f"Optimization: {op_dist.item():.6e}, "
+                    f"RelErr: {rel_err.item():.6e}"
+                )
 
             return dist
     
