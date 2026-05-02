@@ -274,7 +274,7 @@ def pretrain(opt: Options):
             sbsts(y, y0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device)
         ) / 2
         return align_loss_val, unif_loss_val
-    def osbsts_loss(x, y):
+    def osbsts_loss(x, y, optimization_method="bounded"):
         align_loss_val = align_loss(x, y, alpha=opt.align_alpha)
 
         x0 = torch.randn_like(x, device=x.device)
@@ -284,8 +284,8 @@ def pretrain(opt: Options):
         y0 = F.normalize(y0, p=2, dim=-1)
 
         unif_loss_val = (
-            osbsts(x, x0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg, optimization_method="newton") + 
-            osbsts(y, y0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg, optimization_method="newton")
+            osbsts(x, x0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg, optimization_method=optimization_method) + 
+            osbsts(y, y0, ntrees=opt.ntrees, nlines=opt.nlines, p=opt.p, delta=opt.delta, device=x.device, n_function=opt.n_function, p_agg=opt.p_agg, optimization_method=optimization_method)
         ) / 2
         return align_loss_val, unif_loss_val
     def simclr_loss(x, y):
@@ -330,7 +330,16 @@ def pretrain(opt: Options):
             x = encoder(im_x.to(opt.gpus[0]))
             y = encoder(im_y.to(opt.gpus[0]))
 
-            align_loss_val, unif_loss_val = loss_func(x, y)
+            if opt.method == "osbsts":
+                if epoch % 10 == 0 and epoch > 0:
+                    opt_method = "newton"
+                else:
+                    opt_method = "bounded"  # hoặc "sgd" / default của bạn
+
+                align_loss_val, unif_loss_val = osbsts_loss(x, y, optimization_method=opt_method)
+
+            else:
+                align_loss_val, unif_loss_val = loss_func(x, y)
             loss = align_loss_val * opt.align_w + unif_loss_val * opt.unif_w
 
             align_meter.update(align_loss_val)
