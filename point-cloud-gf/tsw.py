@@ -160,7 +160,7 @@ class TWConcurrentLines():
             axis_coordinate = torch.matmul(theta, input_translated.transpose(1, 2))
         
         if self.mass_division == 'uniform':
-            mass_input = mass * torch.ones((num_trees, num_lines, N), device=self.device) / (N * num_lines)
+            mass_input = torch.ones((num_trees, num_lines, N), device=self.device) / (N * num_lines)
         elif self.mass_division =='distance_based':
             if self.ftype == 'circular_concentric':
                 input_projected_translated = torch.einsum('tlb,tld->tlbd', axis_coordinate.repeat(1, num_lines, 1), theta)
