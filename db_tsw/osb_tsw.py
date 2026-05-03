@@ -640,7 +640,6 @@ class OSbTSW(OSb_TSConcurrentLines):
     
     def __init__(self, p=2, delta=2, device="cuda", n_function='power'):
         super().__init__(
-            n_function='power',
             p=p,
             delta=delta,
             device=device,
