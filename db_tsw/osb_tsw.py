@@ -635,14 +635,65 @@ class OSb_TSConcurrentLines:
             mass_input = torch.softmax(weight, dim=-2) / N
         
         return mass_input, axis_coordinate
-class DbTSW(OSb_TSConcurrentLines):
+class OSbTSW(OSb_TSConcurrentLines):
     """Original DbTSW as special case of Generalized DbTSW with p-power N-function"""
     
-    def __init__(self, p=2, delta=2, device="cuda"):
+    def __init__(self, p=2, delta=2, device="cuda", n_function='power'):
         super().__init__(
             n_function='power',
             p=p,
             delta=delta,
             device=device,
-            mass_division='distance_based'
+            mass_division='distance_based',
+            n_function=n_function,
         )
+if __name__ == "__main__":
+    import argparse
+    import torch
+    from torch.profiler import profile, ProfilerActivity
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--N", type=int, default=50000)
+    parser.add_argument("--M", type=int, default=50000)
+    parser.add_argument("--dn", type=int, default=1000)
+    parser.add_argument("--dm", type=int, default=None)
+    parser.add_argument("--ntrees", type=int, default=100)
+    parser.add_argument("--nlines", type=int, default=10)
+    parser.add_argument("--n_function", type=str, default='power')
+    args = parser.parse_args()
+
+    N = args.N
+    M = args.M
+    dn = args.dn
+    dm = args.dm if args.dm is not None else args.dn
+    ntrees = args.ntrees
+    nlines = args.nlines
+    device = args.device
+    n_function = args.n_function
+
+    TW_obj = torch.compile(OSbTSW(n_function=n_function)).to(device) if hasattr(OSbTSW(), "to") else torch.compile(OSbTSW(n_function=n_function))
+
+
+    theta, intercept = generate_trees_frames(ntrees, nlines, dn, gen_mode="gaussian_raw")
+    X = torch.rand(N, dn).to("cuda")
+    Y = torch.rand(M, dm).to("cuda")
+    TW_obj(X, Y, theta, intercept)
+    theta, intercept = generate_trees_frames(ntrees, nlines, dn, gen_mode="gaussian_raw")
+    X = torch.rand(N, dn).to("cuda")
+    Y = torch.rand(M, dm).to("cuda")
+    TW_obj(X, Y, theta, intercept)
+    
+    theta, intercept = generate_trees_frames(ntrees, nlines, dn, gen_mode="gaussian_raw")
+    X = torch.rand(N, dn).to("cuda")
+    Y = torch.rand(M, dm).to("cuda")
+    torch.cuda.reset_peak_memory_stats(device=None)
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, record_shapes=True) as prof:
+        tw = TW_obj(X, Y, theta, intercept)
+
+    prof.export_chrome_trace("trace_concurrent.json")
+    with open("profile_result_concurrent.txt", "w") as f:
+        table_str = prof.key_averages().table(sort_by="cpu_time_total", top_level_events_only=True)
+        f.write(table_str)
+        print(table_str)
+    print(torch.cuda.max_memory_allocated(device=None) / 1024 / 1024)
