@@ -20,7 +20,7 @@ seeds = range(1,args.num_seeds+1)
 modes = ['linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear', 'linear']
 # titles = ['OSbTSW', 'TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'MaxSW', 'SW']
 # titles = ['OSbTSW', 'NTSW','TSW-SL-distance-based', 'TSW-SL-uniform', 'SbTS', 'LCVSW', 'SWGG', 'SW']
-titles = ['DbTSW', "NTSW", "TSW-uni"]
+titles = ['DbTSW', "NTSW", "TSW-uni", "NonlinearTSW"]
 colors = ['blue', 'orange', 'red', 'green', 'purple', 'brown', 'pink', 'cyan', 'magenta']
 
 # Arrays to store results
@@ -160,7 +160,7 @@ for k, title in enumerate(titles):
                 loss += gradient_flow.SbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta)
                 end_time = time.time()  # End timing
                 # print(f"Time taken for TWD orthogonal: {end_time - start_time:.4f} seconds")
-            elif k == 7:
+            elif k == 3:
                 start_time = time.time()  # Start timing
                 theta_twd, intercept_twd = generate_trees_frames(
                     ntrees=int(args.L / args.n_lines),
