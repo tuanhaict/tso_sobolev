@@ -77,7 +77,7 @@ def build_twd_obj(device: torch.device) -> TWConcurrentLines:
     obj = TWConcurrentLines(
         ntrees=NTREES,
         nlines=NLINES,
-        mass_division="distance_based",
+        mass_division="uniform",
         device=device,
         p=1,
         delta=10,
