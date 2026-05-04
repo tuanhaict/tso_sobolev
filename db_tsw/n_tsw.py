@@ -1,5 +1,5 @@
 import torch
-
+import math
 class NTWConcurrentLines():
     def __init__(self, p=1, delta=2, mass_division='distance_based', device="cuda", noisy_mode=None, lambda_=0.0, p_noise =2, p_agg=2):
         """
@@ -35,7 +35,26 @@ class NTWConcurrentLines():
         tw = self.tw_concurrent_lines(mass_XY, combined_axis_coordinate)[0]
 
         return tw
+    def conjugate_exponent(self,p):
+        """
+        Return conjugate exponent p' where 1/p + 1/p' = 1.
+        Supports p=1 and p=inf.
+        """
+        if isinstance(p, str):
+            if p.lower() in {"inf", "infty", "infinity", "oo"}:
+                return float("inf")
+            p = float(p)
 
+        if math.isinf(p):
+            return 1.0
+
+        if p < 1:
+            raise ValueError(f"p_noise must be >= 1, got {p}")
+
+        if p == 1:
+            return float("inf")
+
+        return p / (p - 1.0)
     def tw_concurrent_lines(self, mass_XY, combined_axis_coordinate):
         """
         Args:
@@ -71,10 +90,17 @@ class NTWConcurrentLines():
         subtract_mass = abs_mass * edge_length
         subtract_mass_sum = torch.sum(subtract_mass, dim=[-1, -2])   # S_t
 
-        if self.noisy_mode == 'ball':
-            p_conj = self.p_noise / (self.p_noise - 1)
+        if self.noisy_mode == "ball":
+            p_conj = self.conjugate_exponent(self.p_noise)
+
             h_vec = abs_mass.reshape(abs_mass.shape[0], -1)
-            robust_penalty = self.lambda_ * torch.norm(h_vec, p=p_conj, dim=-1)
+
+            if math.isinf(p_conj):
+                robust_penalty = self.lambda_ * torch.amax(h_vec, dim=-1)
+            elif p_conj == 1.0:
+                robust_penalty = self.lambda_ * torch.sum(h_vec, dim=-1)
+            else:
+                robust_penalty = self.lambda_ * torch.norm(h_vec, p=p_conj, dim=-1)
 
             subtract_mass_sum = subtract_mass_sum + robust_penalty
 
