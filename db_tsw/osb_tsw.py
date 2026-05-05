@@ -380,7 +380,7 @@ class OSb_TSConcurrentLines:
         k_min=1e-6,
         k_max=10000.0,
         bracket_factor=16.0,
-        root_dtype=torch.float32,
+        # root_dtype=torch.float32,
         verbose=False,
     ):
         """
@@ -404,9 +404,10 @@ class OSb_TSConcurrentLines:
         w = w_edges.reshape(w_edges.shape[0], -1)
 
         # Root solving does not need gradients.
-        h_root = h.detach().to(dtype=root_dtype)
-        w_root = w.detach().to(dtype=root_dtype)
-
+        # h_root = h.detach().to(dtype=root_dtype)
+        # w_root = w.detach().to(dtype=root_dtype)
+        h_root = h.detach()
+        w_root = w.detach()
         eps = 1e-12
 
         A2 = torch.sum(w_root * h_root.square(), dim=1)
