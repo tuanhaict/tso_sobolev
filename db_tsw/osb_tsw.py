@@ -339,7 +339,7 @@ class OSb_TSConcurrentLines:
             G = torch.nan_to_num(G, nan=1e30, posinf=1e30, neginf=-1e30)
 
             return G
-
+        print(f"k_min={torch.exp(lo_x)}, k_max={torch.exp(hi_x)}")
         with torch.no_grad():
             # --------------------------------------------------
             # Bracket root: need G(lo) <= 0 <= G(hi)
