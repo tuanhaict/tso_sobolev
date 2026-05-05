@@ -339,7 +339,7 @@ class OSb_TSConcurrentLines:
             G = torch.nan_to_num(G, nan=1e30, posinf=1e30, neginf=-1e30)
 
             return G
-        print(f"Bracketing: k_min={torch.exp(lo_x).mean().item():.3e}, k_max={torch.exp(hi_x).mean().item():.3e}")
+        # print(f"Bracketing: k_min={torch.exp(lo_x).mean().item():.3e}, k_max={torch.exp(hi_x).mean().item():.3e}")
         with torch.no_grad():
             # --------------------------------------------------
             # Bracket root: need G(lo) <= 0 <= G(hi)
@@ -398,7 +398,7 @@ class OSb_TSConcurrentLines:
             # Fixed-iteration vectorized bisection.
             # No early break: avoids CPU-GPU sync.
             # --------------------------------------------------
-            print(f"After: k_min={torch.exp(lo_x).mean().item():.3e}, k_max={torch.exp(hi_x).mean().item():.3e}")
+            # print(f"After: k_min={torch.exp(lo_x).mean().item():.3e}, k_max={torch.exp(hi_x).mean().item():.3e}")
             for _ in range(max_iter):
                 mid_x = 0.5 * (lo_x + hi_x)
                 G_mid = G_from_x(mid_x)
