@@ -276,7 +276,7 @@ class OSb_TSConcurrentLines:
         k_min=1e-6,
         k_max=10000.0,
         bracket_factor=16.0,
-        expand_steps=4,
+        expand_steps=1,
         verbose=False,
     ):
         """
