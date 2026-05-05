@@ -522,8 +522,8 @@ class OSb_TSConcurrentLines:
         k_min=1e-6,
         k_max=10000.0,
         bracket_factor=16.0,
-        expand_steps=1,
-        verbose=False,
+        expand_steps=2,
+        verbose=True,
     ):
         """
         Fast vectorized original-root solver.
