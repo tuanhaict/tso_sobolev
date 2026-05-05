@@ -325,7 +325,6 @@ class OSb_TSConcurrentLines:
 
         lo_x = torch.clamp(torch.log(k0) - log_factor, min=global_lo, max=global_hi)
         hi_x = torch.clamp(torch.log(k0) + log_factor, min=global_lo, max=global_hi)
-
         def G_from_x(x):
             k = torch.exp(x)              # (T,)
             z = k[:, None] * h_det        # (T, LE)
@@ -399,6 +398,7 @@ class OSb_TSConcurrentLines:
             # Fixed-iteration vectorized bisection.
             # No early break: avoids CPU-GPU sync.
             # --------------------------------------------------
+            print(f"k_min={torch.exp(lo_x)}, k_max={torch.exp(hi_x)}")
             for _ in range(max_iter):
                 mid_x = 0.5 * (lo_x + hi_x)
                 G_mid = G_from_x(mid_x)
