@@ -98,7 +98,7 @@ for k, title in enumerate(titles):
                     device='cuda'
                 )  # orthogonal
                 optimization_method = "newton" if t in check_steps else "bounded"
-                loss += gradient_flow.OSbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta, n_function=args.n_function, p_agg=args.p_agg, optimization_method=optimization_method)
+                loss += gradient_flow.OSbTS(X=X.to(device), Y=Y, theta=theta_twd, intercept=intercept_twd, mass_division='distance_based', p=args.p_sobolev, delta=args.delta, n_function=args.n_function, p_agg=args.p_agg, optimization_method=optimization_method, i_max=args.i_max)
                 end_time = time.time()
                   # End timing
                 # print(f"Time taken for SW: {end_time - start_time:.4f} seconds")
