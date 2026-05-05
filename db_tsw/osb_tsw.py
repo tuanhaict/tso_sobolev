@@ -136,42 +136,42 @@ class OSb_TSConcurrentLines:
 
             return dist
     
-    def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
-        """
-        Compute h(e) (mass difference on edges) and w_e (edge weights/lengths).
+    # def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
+    #     """
+    #     Compute h(e) (mass difference on edges) and w_e (edge weights/lengths).
         
-        This is adapted from the original tw_concurrent_lines method.
+    #     This is adapted from the original tw_concurrent_lines method.
         
-        Returns:
-            h_edges: absolute mass differences |h(e)| of shape (num_trees, num_lines, num_edges)
-            w_edges: edge weights/lengths of shape (num_trees, num_lines, num_edges)
-        """
-        coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
-        num_trees, num_lines = mass_XY.shape[0], mass_XY.shape[1]
+    #     Returns:
+    #         h_edges: absolute mass differences |h(e)| of shape (num_trees, num_lines, num_edges)
+    #         w_edges: edge weights/lengths of shape (num_trees, num_lines, num_edges)
+    #     """
+    #     coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
+    #     num_trees, num_lines = mass_XY.shape[0], mass_XY.shape[1]
         
-        # Generate cumulative sum of mass (this gives h at each point)
-        sub_mass = torch.gather(mass_XY, 2, indices)
-        sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
-        sub_mass_right_cumsum = sub_mass + torch.sum(sub_mass, dim=-1, keepdim=True) - sub_mass_target_cumsum
-        mask_right = torch.nonzero(coord_sorted > 0, as_tuple=True)
-        sub_mass_target_cumsum[mask_right] = sub_mass_right_cumsum[mask_right]
+    #     # Generate cumulative sum of mass (this gives h at each point)
+    #     sub_mass = torch.gather(mass_XY, 2, indices)
+    #     sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
+    #     sub_mass_right_cumsum = sub_mass + torch.sum(sub_mass, dim=-1, keepdim=True) - sub_mass_target_cumsum
+    #     mask_right = torch.nonzero(coord_sorted > 0, as_tuple=True)
+    #     sub_mass_target_cumsum[mask_right] = sub_mass_right_cumsum[mask_right]
         
-        # Compute edge lengths
-        root = torch.zeros(num_trees, num_lines, 1, device=self.device)
-        root_indices = torch.searchsorted(coord_sorted, root)
-        coord_sorted_with_root = torch.zeros(num_trees, num_lines, mass_XY.shape[2] + 1, device=self.device)
-        edge_mask = torch.ones_like(coord_sorted_with_root, dtype=torch.bool)
-        edge_mask.scatter_(2, root_indices, False)
-        coord_sorted_with_root[edge_mask] = coord_sorted.flatten()
-        edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
+    #     # Compute edge lengths
+    #     root = torch.zeros(num_trees, num_lines, 1, device=self.device)
+    #     root_indices = torch.searchsorted(coord_sorted, root)
+    #     coord_sorted_with_root = torch.zeros(num_trees, num_lines, mass_XY.shape[2] + 1, device=self.device)
+    #     edge_mask = torch.ones_like(coord_sorted_with_root, dtype=torch.bool)
+    #     edge_mask.scatter_(2, root_indices, False)
+    #     coord_sorted_with_root[edge_mask] = coord_sorted.flatten()
+    #     edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
         
-        # h(e) is the absolute mass difference on each edge
-        h_edges = torch.abs(sub_mass_target_cumsum)
+    #     # h(e) is the absolute mass difference on each edge
+    #     h_edges = torch.abs(sub_mass_target_cumsum)
         
-        # w_e is the edge length
-        w_edges = edge_length
+    #     # w_e is the edge length
+    #     w_edges = edge_length
         
-        return h_edges, w_edges
+    #     return h_edges, w_edges
     
     def compute_closed_form(self, h_edges, w_edges):
         """
@@ -268,6 +268,110 @@ class OSb_TSConcurrentLines:
         out = np.mean(dist_per_tree ** self.p_agg) ** (1.0 / self.p_agg)
 
         return torch.tensor(out, device=orig_device, dtype=h_edges.dtype)
+    def _root_H(self, z):
+        """
+        Fast H(z) = z Phi'(z) - Phi(z) for root finding.
+        This is used only in the detached scalar root solver.
+        """
+        if isinstance(self.n_function, ExpNFunction):
+            # Phi(z) = exp(z) - z - 1
+            # H(z) = z Phi'(z) - Phi(z) = (z - 1) exp(z) + 1
+            zc = z.clamp_max(50.0)
+            return (zc - 1.0) * torch.exp(zc) + 1.0
+
+        if isinstance(self.n_function, ExpSquaredNFunction):
+            # Phi(z) = exp(z^2) - 1
+            # H(z) = (2 z^2 - 1) exp(z^2) + 1
+            u = z.square().clamp_max(50.0)
+            return (2.0 * u - 1.0) * torch.exp(u) + 1.0
+
+        if isinstance(self.n_function, LogNFunction):
+            # Phi(z) = z log(1+z)
+            # Phi'(z) = log(1+z) + z/(1+z)
+            # H(z) = z^2/(1+z)
+            return z.square() / (1.0 + z).clamp_min(1e-12)
+
+        if isinstance(self.n_function, EntropyLogNFunction):
+            # Phi(z) = (1+z) log(1+z) - z
+            # Phi'(z) = log(1+z)
+            # H(z) = z - log(1+z)
+            return z - torch.log1p(z)
+
+        # Fallback for custom N-functions.
+        Phi = self.n_function(z)
+        Phi_p = self.n_function.derivative(z)
+        H = z * Phi_p - Phi
+        return torch.nan_to_num(H, nan=1e30, posinf=1e30, neginf=-1e30)
+
+
+    def _phi_value(self, z):
+        """
+        Fast Phi(z) for the final objective.
+        This is evaluated with graph, so do not detach here.
+        """
+        if isinstance(self.n_function, ExpNFunction):
+            return torch.expm1(z) - z
+
+        if isinstance(self.n_function, ExpSquaredNFunction):
+            return torch.expm1(z.square())
+
+        if isinstance(self.n_function, LogNFunction):
+            return z * torch.log1p(z)
+
+        if isinstance(self.n_function, EntropyLogNFunction):
+            return (1.0 + z) * torch.log1p(z) - z
+
+        return self.n_function(z)
+    def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
+        """
+        Compute h(e) and w_e.
+
+        Optimized changes:
+        - replace torch.nonzero + advanced indexing by torch.where
+        - replace boolean root insertion by scatter_
+        """
+        coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
+
+        num_trees = mass_XY.shape[0]
+        num_lines = mass_XY.shape[1]
+        S = mass_XY.shape[2]
+
+        # Sort signed masses according to projected coordinates.
+        sub_mass = torch.gather(mass_XY, 2, indices)
+
+        # Cumulative mass discrepancy.
+        sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
+
+        # For coordinates to the right of the root, use right-side cumulative mass.
+        total_mass = torch.sum(sub_mass, dim=-1, keepdim=True)
+        sub_mass_right_cumsum = sub_mass + total_mass - sub_mass_target_cumsum
+
+        # Avoid torch.nonzero on CUDA.
+        mask_right = coord_sorted > 0
+        sub_mass_target_cumsum = torch.where(
+            mask_right,
+            sub_mass_right_cumsum,
+            sub_mass_target_cumsum,
+        )
+
+        # Insert root coordinate 0 into the sorted coordinates.
+        # searchsorted(coord_sorted, 0, side='left') is equivalent to count(coord < 0).
+        root_indices = (coord_sorted < 0).sum(dim=-1, keepdim=True)  # (T, L, 1)
+
+        base_idx = torch.arange(S, device=coord_sorted.device).view(1, 1, S)
+        dest_idx = base_idx + (base_idx >= root_indices).long()
+
+        coord_sorted_with_root = coord_sorted.new_zeros(num_trees, num_lines, S + 1)
+        coord_sorted_with_root.scatter_(2, dest_idx, coord_sorted)
+
+        edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
+
+        h_edges = torch.abs(sub_mass_target_cumsum)
+        w_edges = edge_length
+
+        return h_edges, w_edges
+
+
     def compute_via_original_root(
         self,
         h_edges,
@@ -276,6 +380,7 @@ class OSb_TSConcurrentLines:
         k_min=1e-6,
         k_max=10000.0,
         bracket_factor=16.0,
+        root_dtype=torch.float32,
         verbose=False,
     ):
         """
@@ -288,8 +393,8 @@ class OSb_TSConcurrentLines:
             G(k) = sum_e w_e [z Phi'(z) - Phi(z)] - 1 = 0,
             z = k h_e.
 
-        Uses a local log-space bracket around k0. If the local bracket does not
-        contain the root, it falls back directly to the global bracket.
+        Root finding is detached and done in root_dtype for speed.
+        The final objective is evaluated with graph.
         """
 
         orig_dtype = h_edges.dtype
@@ -298,15 +403,16 @@ class OSb_TSConcurrentLines:
         h = h_edges.reshape(h_edges.shape[0], -1)
         w = w_edges.reshape(w_edges.shape[0], -1)
 
-        h_det = h.detach()
-        w_det = w.detach()
+        # Root solving does not need gradients.
+        h_root = h.detach().to(dtype=root_dtype)
+        w_root = w.detach().to(dtype=root_dtype)
 
         eps = 1e-12
 
-        A2 = torch.sum(w_det * h_det.square(), dim=1)
+        A2 = torch.sum(w_root * h_root.square(), dim=1)
         valid = A2 > eps
 
-        # Scale initialization. This is only used to center the search interval.
+        # Initial scale. Used only to center the log-space bracket.
         if isinstance(self.n_function, (ExpNFunction, EntropyLogNFunction)):
             k0 = torch.sqrt(2.0 / A2.clamp_min(eps))
         else:
@@ -322,28 +428,25 @@ class OSb_TSConcurrentLines:
         hi_x = torch.clamp(torch.log(k0) + log_factor, min=global_lo, max=global_hi)
 
         def G_from_x(x):
-            k = torch.exp(x)
-            z = k[:, None] * h_det
+            k = torch.exp(x)              # (num_trees,)
+            z = k[:, None] * h_root       # (num_trees, num_edges)
 
-            Phi = self.n_function(z)
-            Phi_p = self.n_function.derivative(z)
-
-            H = z * Phi_p - Phi
+            H = self._root_H(z)
             H = torch.nan_to_num(H, nan=1e30, posinf=1e30, neginf=-1e30)
 
-            G = torch.sum(w_det * H, dim=1) - 1.0
+            G = torch.sum(w_root * H, dim=1) - 1.0
             G = torch.nan_to_num(G, nan=1e30, posinf=1e30, neginf=-1e30)
 
             return G
 
         with torch.no_grad():
-            # Local bracket.
+            # Local bracket around k0.
             G_lo = G_from_x(lo_x)
             G_hi = G_from_x(hi_x)
 
             bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
 
-            # Direct fallback to global bracket if local bracket fails.
+            # Direct fallback to global bracket if the local bracket fails.
             bad = valid & (~bracketed)
 
             lo_x = torch.where(
@@ -362,7 +465,7 @@ class OSb_TSConcurrentLines:
 
             bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
 
-            # Fixed-iteration log-space bisection.
+            # Fixed-iteration bisection in log-space.
             for _ in range(max_iter):
                 mid_x = 0.5 * (lo_x + hi_x)
                 G_mid = G_from_x(mid_x)
@@ -374,7 +477,7 @@ class OSb_TSConcurrentLines:
 
             x_star = 0.5 * (lo_x + hi_x)
 
-            # If even the global bracket fails, clip to the endpoint suggested by sign.
+            # If even the global bracket fails, clip to endpoint based on sign.
             x_star = torch.where(
                 bracketed & valid,
                 x_star,
@@ -384,11 +487,11 @@ class OSb_TSConcurrentLines:
             k_star = torch.exp(x_star)
             k_star = torch.where(valid, k_star, torch.ones_like(k_star))
 
-        # Final objective with graph.
+        # Final objective with computation graph.
         k_eval = k_star.to(dtype=h.dtype).clamp_min(k_min)
 
         z = k_eval[:, None] * h
-        Phi = self.n_function(z)
+        Phi = self._phi_value(z)
 
         dist_per_tree = (1.0 + torch.sum(w * Phi, dim=1)) / k_eval
 
@@ -400,6 +503,14 @@ class OSb_TSConcurrentLines:
         )
 
         out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
+
+        if verbose and bool(valid.any().item()):
+            print(
+                f"[Original root fast no-expand] "
+                f"k*: min={k_star[valid].min().item():.3e}, "
+                f"max={k_star[valid].max().item():.3e}, "
+                f"mean={k_star[valid].mean().item():.3e}"
+            )
 
         return out.to(device=device, dtype=orig_dtype)
     # def compute_via_original_root(
