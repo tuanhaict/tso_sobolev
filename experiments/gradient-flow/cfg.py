@@ -107,6 +107,11 @@ def parse_args():
         default=None,
         help='noisy mode for NTWD, could be None'
     )
+    parser.add_argument(
+        "--i_max",
+        type=int,
+        default=6,
+    )
     # parser.add_argument(
     #     '--ftype',
     #     type=str,

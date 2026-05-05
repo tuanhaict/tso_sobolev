@@ -15,7 +15,7 @@ class OSb_TSConcurrentLines:
     
     def __init__(self, n_function='exp', p=2, delta=2, 
                  mass_division='distance_based', device="cuda",
-                 optimization_method='bounded', p_agg=2):
+                 optimization_method='bounded', p_agg=2, i_max=6):
         """
         Args:
             n_function: Type of N-function. Options:
@@ -37,6 +37,7 @@ class OSb_TSConcurrentLines:
         self.optimization_method = optimization_method
         self.p_agg = p_agg
         self.print_tail_at_kstar = True  # Set to True to print tail diagnostics at k*
+        self.i_max = i_max
         assert self.mass_division in ['uniform', 'distance_based'], \
             "Invalid mass division. Must be one of 'uniform', 'distance_based'"
         
@@ -119,7 +120,7 @@ class OSb_TSConcurrentLines:
         if self.use_closed_form:
             return self.compute_closed_form(h_edges, w_edges)
         else:
-            dist = self.compute_via_original_root(h_edges, w_edges)
+            dist = self.compute_via_original_root(h_edges, w_edges, max_iter=self.i_max)
 
             # if self.optimization_method == "newton":
             #     op_dist = self.compute_via_scipy_optimization(h_edges, w_edges)
@@ -188,72 +189,7 @@ class OSb_TSConcurrentLines:
         distances_per_tree = torch.pow(weighted_sum_per_tree, 1 / p)
 
         return (distances_per_tree.pow(self.p_agg).mean()).pow(1 / self.p_agg)
-    
-    def compute_via_optimization(self, h_edges, w_edges):
-        """
-        Compute using univariate optimization for general N-functions
-        using implicit differentiation (detach k*).
 
-        h_edges: (T, L, E)  |h(e)|, requires_grad=True
-        w_edges: (T, L, E)  w_e, no grad
-        """
-        orig_dtype = h_edges.dtype
-        device = h_edges.device
-
-        h_edges = h_edges.double()
-        w_edges = w_edges.double()
-
-        num_trees = h_edges.shape[0]
-        distances_per_tree = []
-
-        # Diagnostics at k*
-        tail_rel_exact_list = []
-        tail_rel_retained_list = []
-        max_z_list = []
-        kstar_list = []
-
-        for t in range(num_trees):
-            h = h_edges[t]        # (L, E)
-            w = w_edges[t]        # (L, E)
-
-            h_flat = h.reshape(-1)
-            w_flat = w.reshape(-1)
-
-            # -----------------------------
-            # Solve k*
-            # -----------------------------
-            with torch.no_grad():
-                k = 1.0 / (h_flat.mean() + 1e-8)
-
-                for _ in range(100):
-                    kh = k * h_flat
-
-                    Phi = self.n_function(kh)
-                    Phi_p = self.n_function.derivative(kh)
-                    Phi_pp = self.n_function.second_derivative(kh)
-
-                    sum_Phi = torch.sum(w_flat * Phi)
-                    sum_Phi_p = torch.sum(w_flat * h_flat * Phi_p)
-                    sum_Phi_pp = torch.sum(w_flat * h_flat**2 * Phi_pp)
-
-                    Fp = -(1.0 + sum_Phi) / k**2 + sum_Phi_p / k
-                    Fpp = (
-                        2.0 * (1.0 + sum_Phi) / k**3
-                        - 2.0 * sum_Phi_p / k**2
-                        + sum_Phi_pp / k
-                    )
-
-                    k = torch.clamp(k - Fp / (Fpp + 1e-12), min=1e-8)
-
-            k = k.detach()
-            kh = k * h_flat
-            loss_t = (1.0 + torch.sum(w_flat * self.n_function(k * h_flat))) / k
-            distances_per_tree.append(loss_t)
-
-        dist_per_tree = torch.stack(distances_per_tree)
-        out = (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
-
-        return out.to(dtype=orig_dtype, device=device)
     def compute_via_scipy_optimization(self, h_edges, w_edges, x_window=30.0):
         """
         Diagnostic-only optimization using scipy.optimize.minimize_scalar.
@@ -521,81 +457,6 @@ class OSb_TSConcurrentLines:
             )
 
         return out.to(device=device, dtype=orig_dtype)
-
-    def compute_via_taylor(self, h_edges, w_edges):
-        eps = 1e-8
-
-        # (T, L*E)
-        h = h_edges.reshape(h_edges.shape[0], -1)
-        w = w_edges.reshape(w_edges.shape[0], -1)
-
-        if isinstance(self.n_function, PowerNFunction):
-            p = self.p
-            A_p = torch.sum(w * h**p, dim=1)
-
-            Cp = (p - 1)**(1.0 / p) + (p - 1)**(-(p - 1) / p)
-            dist_per_tree = Cp * (A_p).pow(1.0 / p)
-
-        elif isinstance(self.n_function, ExpNFunction):
-            A2 = torch.sum(w * h**2, dim=1)
-            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-            dist_per_tree = (
-                torch.sqrt(2.0 * A2)
-                + A3 / (3.0 * (A2))
-            )
-
-        elif isinstance(self.n_function, ExpSquaredNFunction):
-            A2 = torch.sum(w * h**2, dim=1)
-            A4 = torch.sum(w * h**4, dim=1)
-
-            dist_per_tree = (
-                2.0 * torch.sqrt(A2)
-                + A4 / (2.0 * (A2).pow(1.5))
-            )
-        elif isinstance(self.n_function, LinearNFunction):
-            dist_per_tree = torch.sum(w * torch.abs(h), dim=1)
-        elif isinstance(self.n_function, ExpQuadraticQuarterNFunction):
-            A2 = torch.sum(w * h**2, dim=1)
-            A4 = torch.sum(w * h**4, dim=1)
-
-            dist_per_tree = (
-                torch.sqrt(A2)
-                + A4 / (4.0 * (A2).pow(1.5))
-            )
-
-        elif isinstance(self.n_function, ExpHalfLinearCorrectedNFunction):
-            A2 = torch.sum(w * h**2, dim=1)
-            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-
-            dist_per_tree = (
-                torch.sqrt((A2)/2.0)
-                + A3 / (6.0 * (A2))
-            )
-        elif isinstance(self.n_function, LogNFunction):
-            A2 = torch.sum(w * h**2, dim=1)
-            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-            A4 = torch.sum(w * h**4, dim=1)
-            A5 = torch.sum(w * torch.abs(h)**5, dim=1)
-            A7 = torch.sum(w * torch.abs(h)**7, dim=1)
-            A6 = torch.sum(w * h**6, dim=1)
-            dist_per_tree = (
-                2.0 * torch.sqrt(A2)
-                - A3 / (2.0 * A2)
-            )
-        elif isinstance(self.n_function, EntropyLogNFunction):
-            A2 = torch.sum(w * h**2, dim=1)
-            A3 = torch.sum(w * torch.abs(h)**3, dim=1)
-            A4 = torch.sum(w * h**4, dim=1)
-            dist_per_tree = (
-                torch.sqrt(2.0 *A2)
-                - A3 / (3.0 * A2)
-            )
-        
-        else:
-            raise ValueError("Unsupported N-function for Taylor GST")
-        if self.optimization_method == "newton":
-            print(f"k* approx: {1/torch.sqrt(A2)}")
-        return (dist_per_tree.pow(self.p_agg).mean()).pow(1.0 / self.p_agg)
 
 
     def get_mass_and_coordinate(self, X, Y, theta, intercept):
