@@ -263,13 +263,6 @@ class OSb_TSConcurrentLines:
 
             dist_per_tree.append(dist_t)
 
-            print(
-                f"[SciPy opt] tree={t:03d}, "
-                f"k*={k_star:.6e}, "
-                f"dist={dist_t:.6e}, "
-                f"success={res.success}"
-            )
-
         dist_per_tree = np.asarray(dist_per_tree, dtype=np.float64)
 
         out = np.mean(dist_per_tree ** self.p_agg) ** (1.0 / self.p_agg)
