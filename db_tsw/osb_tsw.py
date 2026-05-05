@@ -588,7 +588,8 @@ class OSb_TSConcurrentLines:
             # --------------------------------------------------
             G_lo = G_from_x(lo_x)
             G_hi = G_from_x(hi_x)
-
+            lo_x_before_expand = lo_x.clone()
+            hi_x_before_expand = hi_x.clone()
             for _ in range(expand_steps):
                 need_left = valid & (G_lo > 0.0)
                 need_right = valid & (G_hi < 0.0)
@@ -629,12 +630,16 @@ class OSb_TSConcurrentLines:
                 bracketed = valid & (G_lo <= 0.0) & (G_hi >= 0.0)
 
             if verbose:
+                changed_left = (lo_x != lo_x_before_expand)
+                changed_right = (hi_x != hi_x_before_expand)
+                changed_any = changed_left | changed_right
                 bad2 = int((valid & (~bracketed)).sum().item())
-                if bad2 > 0:
-                    print(
-                        f"[WARNING] {bad2}/{T} trees still not bracketed. "
-                        f"Will clip to endpoint. Increase k_max."
-                    )
+                print(
+                    "[Bracket expansion] "
+                    f"changed_any={changed_any.sum().item()}/{valid.sum().item()}, "
+                    f"changed_left={changed_left.sum().item()}, "
+                    f"changed_right={changed_right.sum().item()}"
+                )
 
             # --------------------------------------------------
             # Fixed-iteration vectorized bisection.
