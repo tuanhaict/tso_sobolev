@@ -136,42 +136,42 @@ class OSb_TSConcurrentLines:
 
             return dist
     
-    # def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
-    #     """
-    #     Compute h(e) (mass difference on edges) and w_e (edge weights/lengths).
+    def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
+        """
+        Compute h(e) (mass difference on edges) and w_e (edge weights/lengths).
         
-    #     This is adapted from the original tw_concurrent_lines method.
+        This is adapted from the original tw_concurrent_lines method.
         
-    #     Returns:
-    #         h_edges: absolute mass differences |h(e)| of shape (num_trees, num_lines, num_edges)
-    #         w_edges: edge weights/lengths of shape (num_trees, num_lines, num_edges)
-    #     """
-    #     coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
-    #     num_trees, num_lines = mass_XY.shape[0], mass_XY.shape[1]
+        Returns:
+            h_edges: absolute mass differences |h(e)| of shape (num_trees, num_lines, num_edges)
+            w_edges: edge weights/lengths of shape (num_trees, num_lines, num_edges)
+        """
+        coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
+        num_trees, num_lines = mass_XY.shape[0], mass_XY.shape[1]
         
-    #     # Generate cumulative sum of mass (this gives h at each point)
-    #     sub_mass = torch.gather(mass_XY, 2, indices)
-    #     sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
-    #     sub_mass_right_cumsum = sub_mass + torch.sum(sub_mass, dim=-1, keepdim=True) - sub_mass_target_cumsum
-    #     mask_right = torch.nonzero(coord_sorted > 0, as_tuple=True)
-    #     sub_mass_target_cumsum[mask_right] = sub_mass_right_cumsum[mask_right]
+        # Generate cumulative sum of mass (this gives h at each point)
+        sub_mass = torch.gather(mass_XY, 2, indices)
+        sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
+        sub_mass_right_cumsum = sub_mass + torch.sum(sub_mass, dim=-1, keepdim=True) - sub_mass_target_cumsum
+        mask_right = torch.nonzero(coord_sorted > 0, as_tuple=True)
+        sub_mass_target_cumsum[mask_right] = sub_mass_right_cumsum[mask_right]
         
-    #     # Compute edge lengths
-    #     root = torch.zeros(num_trees, num_lines, 1, device=self.device)
-    #     root_indices = torch.searchsorted(coord_sorted, root)
-    #     coord_sorted_with_root = torch.zeros(num_trees, num_lines, mass_XY.shape[2] + 1, device=self.device)
-    #     edge_mask = torch.ones_like(coord_sorted_with_root, dtype=torch.bool)
-    #     edge_mask.scatter_(2, root_indices, False)
-    #     coord_sorted_with_root[edge_mask] = coord_sorted.flatten()
-    #     edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
+        # Compute edge lengths
+        root = torch.zeros(num_trees, num_lines, 1, device=self.device)
+        root_indices = torch.searchsorted(coord_sorted, root)
+        coord_sorted_with_root = torch.zeros(num_trees, num_lines, mass_XY.shape[2] + 1, device=self.device)
+        edge_mask = torch.ones_like(coord_sorted_with_root, dtype=torch.bool)
+        edge_mask.scatter_(2, root_indices, False)
+        coord_sorted_with_root[edge_mask] = coord_sorted.flatten()
+        edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
         
-    #     # h(e) is the absolute mass difference on each edge
-    #     h_edges = torch.abs(sub_mass_target_cumsum)
+        # h(e) is the absolute mass difference on each edge
+        h_edges = torch.abs(sub_mass_target_cumsum)
         
-    #     # w_e is the edge length
-    #     w_edges = edge_length
+        # w_e is the edge length
+        w_edges = edge_length
         
-    #     return h_edges, w_edges
+        return h_edges, w_edges
     
     def compute_closed_form(self, h_edges, w_edges):
         """
@@ -322,54 +322,54 @@ class OSb_TSConcurrentLines:
             return (1.0 + z) * torch.log1p(z) - z
 
         return self.n_function(z)
-    def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
-        """
-        Compute h(e) and w_e.
+    # def compute_edge_mass_and_weights(self, mass_XY, combined_axis_coordinate):
+    #     """
+    #     Compute h(e) and w_e.
 
-        Optimized changes:
-        - replace torch.nonzero + advanced indexing by torch.where
-        - replace boolean root insertion by scatter_
-        """
-        coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
+    #     Optimized changes:
+    #     - replace torch.nonzero + advanced indexing by torch.where
+    #     - replace boolean root insertion by scatter_
+    #     """
+    #     coord_sorted, indices = torch.sort(combined_axis_coordinate, dim=-1)
 
-        num_trees = mass_XY.shape[0]
-        num_lines = mass_XY.shape[1]
-        S = mass_XY.shape[2]
+    #     num_trees = mass_XY.shape[0]
+    #     num_lines = mass_XY.shape[1]
+    #     S = mass_XY.shape[2]
 
-        # Sort signed masses according to projected coordinates.
-        sub_mass = torch.gather(mass_XY, 2, indices)
+    #     # Sort signed masses according to projected coordinates.
+    #     sub_mass = torch.gather(mass_XY, 2, indices)
 
-        # Cumulative mass discrepancy.
-        sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
+    #     # Cumulative mass discrepancy.
+    #     sub_mass_target_cumsum = torch.cumsum(sub_mass, dim=-1)
 
-        # For coordinates to the right of the root, use right-side cumulative mass.
-        total_mass = torch.sum(sub_mass, dim=-1, keepdim=True)
-        sub_mass_right_cumsum = sub_mass + total_mass - sub_mass_target_cumsum
+    #     # For coordinates to the right of the root, use right-side cumulative mass.
+    #     total_mass = torch.sum(sub_mass, dim=-1, keepdim=True)
+    #     sub_mass_right_cumsum = sub_mass + total_mass - sub_mass_target_cumsum
 
-        # Avoid torch.nonzero on CUDA.
-        mask_right = coord_sorted > 0
-        sub_mass_target_cumsum = torch.where(
-            mask_right,
-            sub_mass_right_cumsum,
-            sub_mass_target_cumsum,
-        )
+    #     # Avoid torch.nonzero on CUDA.
+    #     mask_right = coord_sorted > 0
+    #     sub_mass_target_cumsum = torch.where(
+    #         mask_right,
+    #         sub_mass_right_cumsum,
+    #         sub_mass_target_cumsum,
+    #     )
 
-        # Insert root coordinate 0 into the sorted coordinates.
-        # searchsorted(coord_sorted, 0, side='left') is equivalent to count(coord < 0).
-        root_indices = (coord_sorted < 0).sum(dim=-1, keepdim=True)  # (T, L, 1)
+    #     # Insert root coordinate 0 into the sorted coordinates.
+    #     # searchsorted(coord_sorted, 0, side='left') is equivalent to count(coord < 0).
+    #     root_indices = (coord_sorted < 0).sum(dim=-1, keepdim=True)  # (T, L, 1)
 
-        base_idx = torch.arange(S, device=coord_sorted.device).view(1, 1, S)
-        dest_idx = base_idx + (base_idx >= root_indices).long()
+    #     base_idx = torch.arange(S, device=coord_sorted.device).view(1, 1, S)
+    #     dest_idx = base_idx + (base_idx >= root_indices).long()
 
-        coord_sorted_with_root = coord_sorted.new_zeros(num_trees, num_lines, S + 1)
-        coord_sorted_with_root.scatter_(2, dest_idx, coord_sorted)
+    #     coord_sorted_with_root = coord_sorted.new_zeros(num_trees, num_lines, S + 1)
+    #     coord_sorted_with_root.scatter_(2, dest_idx, coord_sorted)
 
-        edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
+    #     edge_length = coord_sorted_with_root[:, :, 1:] - coord_sorted_with_root[:, :, :-1]
 
-        h_edges = torch.abs(sub_mass_target_cumsum)
-        w_edges = edge_length
+    #     h_edges = torch.abs(sub_mass_target_cumsum)
+    #     w_edges = edge_length
 
-        return h_edges, w_edges
+    #     return h_edges, w_edges
 
 
     def compute_via_original_root(
